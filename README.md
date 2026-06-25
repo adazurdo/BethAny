@@ -22,6 +22,22 @@ La monetización para desarrolladores se basa en:
 
 ---
 
+## 🧭 Estado actual de desarrollo (constitución activa)
+
+En esta fase inicial, BethAny se desarrolla con estas reglas activas:
+
+- Código sencillo y fácil de mantener.
+- Ejecución local-first (sin dependencias cloud obligatorias).
+- Backend y automatizaciones con **Python**.
+- Frontend con **React**.
+- Arranque de desarrollo frontend con `npm start dev`.
+- Validación de flujos móviles con **Expo** en dispositivos móviles.
+- Seguridad avanzada diferida temporalmente por tratarse de una fase mock.
+
+Estas reglas se formalizan en `.specify/memory/constitution.md`.
+
+---
+
 ## 🎯 Objetivo del producto
 
 Construir una app social de apuestas virtuales, divertida y escalable, con una arquitectura moderna y preparada para producción.

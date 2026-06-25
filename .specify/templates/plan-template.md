@@ -18,15 +18,15 @@
   the iteration process.
 -->
 
-**Language/Version**: [e.g., Python 3.11, Swift 5.9, Rust 1.75 or NEEDS CLARIFICATION]
+**Language/Version**: [Python 3.11+ for backend/automation; React stack for frontend; note any justified exception]
 
-**Primary Dependencies**: [e.g., FastAPI, UIKit, LLVM or NEEDS CLARIFICATION]
+**Primary Dependencies**: [e.g., FastAPI, React, Expo or NEEDS CLARIFICATION]
 
-**Storage**: [if applicable, e.g., PostgreSQL, CoreData, files or N/A]
+**Storage**: [local-only for current phase, e.g., local files, local DB, in-memory mock]
 
-**Testing**: [e.g., pytest, XCTest, cargo test or NEEDS CLARIFICATION]
+**Testing**: [Current mode: TDD deferred unless activated; define planned test strategy and activation trigger]
 
-**Target Platform**: [e.g., Linux server, iOS 15+, WASM or NEEDS CLARIFICATION]
+**Target Platform**: [local development environment + mobile validation via Expo when applicable]
 
 **Project Type**: [e.g., library/cli/web-service/mobile-app/compiler/desktop-app or NEEDS CLARIFICATION]
 
@@ -40,7 +40,15 @@
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-[Gates determined based on constitution file]
+- [ ] Simplicity: Proposed design is the simplest viable approach and lists any
+  rejected complex alternatives.
+- [ ] Local-first: Runtime and dependencies are local-only for this phase.
+- [ ] Stack compliance: Python (backend/automation) and React (frontend) are
+  used; mobile-impacting flows include Expo validation.
+- [ ] TDD status: Plan states whether TDD is deferred or active. If active,
+  red-green-refactor enforcement is described.
+- [ ] Security scope: Confirms mock-stage security posture (no production
+  secrets/PII and no unapproved hardening work).
 
 ## Project Structure
 

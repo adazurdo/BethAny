@@ -1,0 +1,10 @@
+{
+  "expo": {
+    "name": "BethAny",
+    "slug": "bethany",
+    "scheme": "bethany",
+    "web": {
+      "bundler": "metro"
+    }
+  }
+}

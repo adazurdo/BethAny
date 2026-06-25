@@ -8,6 +8,19 @@
 
 **Input**: User description: "$ARGUMENTS"
 
+## Constitution Alignment *(mandatory)*
+
+- **Simplicity Statement**: [Describe the simplest viable approach and any
+  explicitly avoided complexity]
+- **Local-First Confirmation**: [Confirm all runtime assumptions are local-only
+  for the current phase]
+- **Stack Confirmation**: [Confirm Python + React usage and whether Expo mobile
+  validation is required]
+- **TDD Mode**: [Deferred or Active. If Active, state how red-green-refactor is
+  enforced for this feature]
+- **Security Scope (Mock Stage)**: [Confirm no production secrets/PII and list
+  deferred security hardening items]
+
 ## User Scenarios & Testing *(mandatory)*
 
 <!--
@@ -91,7 +104,8 @@
 - **FR-002**: System MUST [specific capability, e.g., "validate email addresses"]
 - **FR-003**: Users MUST be able to [key interaction, e.g., "reset their password"]
 - **FR-004**: System MUST [data requirement, e.g., "persist user preferences"]
-- **FR-005**: System MUST [behavior, e.g., "log all security events"]
+- **FR-005**: System MUST [behavior, e.g., "define local mock behavior and
+  document deferred security hardening tasks"]
 
 *Example of marking unclear requirements:*
 
@@ -129,3 +143,4 @@
 - [Assumption about scope boundaries, e.g., "Mobile support is out of scope for v1"]
 - [Assumption about data/environment, e.g., "Existing authentication system will be reused"]
 - [Dependency on existing system/service, e.g., "Requires access to the existing user profile API"]
+- [Assumption about TDD mode, e.g., "TDD remains deferred until explicitly activated"]
