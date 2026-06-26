@@ -35,11 +35,11 @@ const styles = StyleSheet.create({
   },
   title: {
     color: colors.text,
-    fontSize: 18,
-    fontWeight: "800",
+    fontSize: 20,
+    fontWeight: "900",
   },
   subtitle: {
     color: colors.muted,
-    fontSize: 13,
+    fontSize: 14,
   },
 });

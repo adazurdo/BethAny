@@ -1,13 +1,16 @@
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { EventCard } from "../../components/EventCard";
 import { SectionCard } from "../../components/SectionCard";
 import { colors, radii, spacing } from "../../theme";
 import { globalRanking, mockEvents } from "../../data";
+import DesktopShell from "../../components/DesktopShell";
 
 export default function HomeScreen() {
+  const { width } = useWindowDimensions();
+  const isDesktop = width >= 900;
   const featured = mockEvents.filter((event) => event.featured);
 
-  return (
+  const content = (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <View style={styles.hero}>
         <Text style={styles.kicker}>BethAny</Text>
@@ -19,7 +22,7 @@ export default function HomeScreen() {
 
       <SectionCard title="Featured events" subtitle="Top stories from the current moment">
         <View style={styles.grid}>
-          {featured.length > 0 ? featured.map((event) => <EventCard key={event.id} {...event} />) : <EmptyState />}
+          {featured.length > 0 ? featured.map((event, i) => <EventCard key={event.id} {...event} />) : <EmptyState />}
         </View>
       </SectionCard>
 
@@ -39,6 +42,12 @@ export default function HomeScreen() {
       </SectionCard>
     </ScrollView>
   );
+
+  if (isDesktop) {
+    return <DesktopShell>{content}</DesktopShell>;
+  }
+
+  return content;
 }
 
 function EmptyState() {
@@ -74,14 +83,14 @@ const styles = StyleSheet.create({
   },
   title: {
     color: colors.surface,
-    fontSize: 30,
-    lineHeight: 36,
+    fontSize: 34,
+    lineHeight: 40,
     fontWeight: "900",
   },
   subtitle: {
     color: colors.surface,
-    fontSize: 15,
-    lineHeight: 22,
+    fontSize: 16,
+    lineHeight: 24,
   },
   grid: {
     gap: spacing.sm,

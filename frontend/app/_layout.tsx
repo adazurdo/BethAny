@@ -1,16 +1,19 @@
 import { Tabs } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { Text } from "react-native";
+import Icon from "../components/Icon";
 import { colors } from "../theme";
+import { BetSlipProvider } from "../components/BetSlipContext";
 
 export default function RootLayout() {
   return (
     <>
-      <StatusBar style="dark" />
-      <Tabs
+      <StatusBar style="light" />
+      <BetSlipProvider>
+        <Tabs
         screenOptions={{
           headerShown: false,
-          tabBarActiveTintColor: colors.primaryDark,
+          tabBarActiveTintColor: colors.primary,
           tabBarInactiveTintColor: colors.muted,
           tabBarStyle: {
             backgroundColor: colors.surface,
@@ -24,10 +27,11 @@ export default function RootLayout() {
           },
         }}
       >
-        <Tabs.Screen name="index" options={{ title: "Home", tabBarLabel: "Home", tabBarIcon: () => <Text>🏠</Text> }} />
-        <Tabs.Screen name="profile" options={{ title: "Profile", tabBarLabel: "Profile", tabBarIcon: () => <Text>👤</Text> }} />
-        <Tabs.Screen name="social" options={{ title: "Social", tabBarLabel: "Social", tabBarIcon: () => <Text>👥</Text> }} />
+        <Tabs.Screen name="index" options={{ title: "Home", tabBarLabel: "Home", tabBarIcon: () => <Icon glyph="🏠" /> }} />
+        <Tabs.Screen name="profile" options={{ title: "Profile", tabBarLabel: "Profile", tabBarIcon: () => <Icon glyph="👤" /> }} />
+        <Tabs.Screen name="social" options={{ title: "Social", tabBarLabel: "Social", tabBarIcon: () => <Icon glyph="👥" /> }} />
       </Tabs>
+      </BetSlipProvider>
     </>
   );
 }
