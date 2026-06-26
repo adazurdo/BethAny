@@ -5,6 +5,9 @@
     "scheme": "bethany",
     "web": {
       "bundler": "metro"
-    }
+    },
+    "plugins": [
+      "expo-router"
+    ]
   }
 }
