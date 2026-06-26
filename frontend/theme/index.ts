@@ -1,15 +1,15 @@
 export const colors = {
-  background: "#FFF8F1",
-  surface: "#FFFFFF",
-  surfaceSoft: "#FFF1E6",
-  primary: "#F97316",
-  primaryDark: "#C2410C",
-  text: "#1F2937",
-  muted: "#6B7280",
-  border: "#F3D2B3",
+  background: "#071427", // deep navy background for contrast
+  surface: "#0B1A2A", // card surfaces
+  surfaceSoft: "#0F2433", // slightly lighter card tone
+  primary: "#FF7A18", // vivid orange accent
+  primaryDark: "#D35400", // darker orange
+  text: "#FFFFFF", // white text on dark backgrounds
+  muted: "#9CA3AF", // secondary text
+  border: "#12232F", // subtle border
   success: "#16A34A",
-  danger: "#DC2626",
-  accent: "#FDBA74",
+  danger: "#FF4D4F",
+  accent: "#FFB07A",
 };
 
 export const spacing = {
@@ -28,10 +28,30 @@ export const radii = {
 
 export const shadows = {
   card: {
-    shadowColor: "#E15B00",
-    shadowOpacity: 0.12,
-    shadowOffset: { width: 0, height: 8 },
-    shadowRadius: 20,
-    elevation: 4,
+    shadowColor: "#000",
+    shadowOpacity: 0.45,
+    shadowOffset: { width: 0, height: 10 },
+    shadowRadius: 24,
+    elevation: 6,
   },
+};
+
+export const fonts = {
+  system: "System",
+};
+
+export const fontSizes = {
+  xs: 12,
+  sm: 13,
+  md: 15,
+  lg: 18,
+  xl: 24,
+  hero: 32,
+};
+
+export const fontWeights = {
+  regular: "400",
+  medium: "600",
+  bold: "800",
+  black: "900",
 };
