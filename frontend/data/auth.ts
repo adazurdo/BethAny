@@ -1,3 +1,5 @@
+import { Platform } from "react-native";
+
 export type AccountProfile = {
   displayName: string;
   avatarUrl: string;
@@ -47,16 +49,41 @@ export type AccountStateUpdate = {
   friends?: FriendItem[];
 };
 
-const API_URL = process.env.EXPO_PUBLIC_BETHANY_API_URL ?? "http://127.0.0.1:8000";
+function resolveApiUrl() {
+  const configuredUrl = process.env.EXPO_PUBLIC_BETHANY_API_URL;
+  if (configuredUrl) {
+    return configuredUrl;
+  }
+
+  if (Platform.OS === "web") {
+    if (typeof window !== "undefined") {
+      return `${window.location.protocol}//${window.location.hostname}:8000`;
+    }
+    return "http://localhost:8000";
+  }
+
+  if (Platform.OS === "android") {
+    return "http://10.0.2.2:8000";
+  }
+
+  return "http://127.0.0.1:8000";
+}
+
+const API_URL = resolveApiUrl();
 
 async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_URL}${path}`, {
-    headers: {
-      "Content-Type": "application/json",
-      ...(init?.headers ?? {}),
-    },
-    ...init,
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${API_URL}${path}`, {
+      headers: {
+        "Content-Type": "application/json",
+        ...(init?.headers ?? {}),
+      },
+      ...init,
+    });
+  } catch {
+    throw new Error(`No se pudo conectar con la API local en ${API_URL}. Verifica que el backend esté en ejecución.`);
+  }
 
   const raw = await response.text();
   const body = raw ? JSON.parse(raw) : {};

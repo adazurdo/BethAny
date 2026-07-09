@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import asdict
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -165,14 +166,16 @@ class BethanyRequestHandler(BaseHTTPRequestHandler):
         _json_response(self, HTTPStatus.OK, _serialize_account(updated))
 
 
-def create_app() -> ThreadingHTTPServer:
+def create_app(host: str = "127.0.0.1", port: int = 8000) -> ThreadingHTTPServer:
     initialize_repository()
-    return ThreadingHTTPServer(("127.0.0.1", 8000), BethanyRequestHandler)
+    return ThreadingHTTPServer((host, port), BethanyRequestHandler)
 
 
 def serve() -> None:
-    server = create_app()
-    print("BethAny API listening on http://127.0.0.1:8000")
+    host = os.getenv("BETHANY_API_HOST", "127.0.0.1")
+    port = int(os.getenv("BETHANY_API_PORT", "8000"))
+    server = create_app(host=host, port=port)
+    print(f"BethAny API listening on http://{host}:{port}")
     try:
         server.serve_forever()
     except KeyboardInterrupt:

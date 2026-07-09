@@ -33,6 +33,11 @@ export default function LoginScreen() {
       <Text style={styles.title}>Iniciar sesión</Text>
       <Text style={styles.subtitle}>Usa tu cuenta local para recuperar tu perfil y tus datos guardados.</Text>
 
+      <View style={styles.identityHint}>
+        <Text style={styles.identityHintLabel}>Puedes entrar con</Text>
+        <Text style={styles.identityHintValue}>correo o usuario registrados</Text>
+      </View>
+
       <View style={styles.form}>
         <TextInput
           autoCapitalize="none"
@@ -79,6 +84,27 @@ const styles = StyleSheet.create({
   subtitle: {
     color: colors.muted,
     lineHeight: 22,
+  },
+  identityHint: {
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    gap: 2,
+  },
+  identityHintLabel: {
+    color: colors.muted,
+    fontSize: 12,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+  },
+  identityHintValue: {
+    color: colors.text,
+    fontSize: 14,
+    fontWeight: "800",
   },
   form: {
     gap: spacing.sm,

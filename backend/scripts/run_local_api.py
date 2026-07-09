@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
@@ -11,4 +12,5 @@ from bethany_mock.api import serve
 
 
 if __name__ == "__main__":
+    os.environ.setdefault("BETHANY_API_HOST", "0.0.0.0")
     serve()

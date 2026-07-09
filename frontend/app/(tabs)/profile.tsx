@@ -46,7 +46,7 @@ export default function ProfileScreen() {
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <Text style={styles.pageLabel}>Profile</Text>
-      <ProfileSummary {...profile} />
+      <ProfileSummary {...profile} identifier={account?.identifier} />
 
       <SectionCard title="Edit account" subtitle="Keep the saved profile data in sync with the current session.">
         <View style={styles.form}>

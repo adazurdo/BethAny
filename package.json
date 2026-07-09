@@ -2,7 +2,9 @@
   "name": "bethany",
   "private": true,
   "scripts": {
-    "start": "npm --prefix frontend start"
+    "start": "npm --prefix frontend start",
+    "api": "python3 backend/scripts/run_local_api.py",
+    "dev": "python3 scripts/dev_local.py"
   },
   "dependencies": {
     "@expo-google-fonts/inter": "^0.4.2",
