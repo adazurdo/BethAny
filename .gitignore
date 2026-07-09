@@ -1,3 +1,8 @@
+package-lock.json
+frontend/package-lock.json
+**/__pycache__/
+**/*.pyc
+**/*.pyo
 frontend/.expo/
 frontend/node_modules/
 node_modules
