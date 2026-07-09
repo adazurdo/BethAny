@@ -1,4 +1,4 @@
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View, Animated, Pressable } from "react-native";
 import { colors, radii, spacing } from "../theme";
 import { useBetSlip } from "./BetSlipContext";
 
@@ -17,12 +17,30 @@ export function EventCard({ title, sport, league, startLabel, featured, tone }: 
   const id = title;
   const isSelected = selections.some((s) => s.id === id);
 
+  const scale = new Animated.Value(1);
+
+  function animatePressIn() {
+    Animated.spring(scale, { toValue: 0.96, useNativeDriver: true, friction: 7 }).start();
+  }
+
+  function animatePressOut() {
+    Animated.spring(scale, { toValue: 1, useNativeDriver: true, friction: 7 }).start();
+  }
+
   function handleAdd() {
-    addSelection({ id, title, meta: `${league} • ${startLabel}` });
+    Animated.sequence([
+      Animated.timing(scale, { toValue: 0.9, duration: 80, useNativeDriver: true }),
+      Animated.timing(scale, { toValue: 1.05, duration: 120, useNativeDriver: true }),
+      Animated.timing(scale, { toValue: 1, duration: 120, useNativeDriver: true }),
+    ]).start(() => addSelection({ id, title, meta: `${league} • ${startLabel}` }));
   }
 
   function handleRemove() {
-    removeSelection(id);
+    Animated.sequence([
+      Animated.timing(scale, { toValue: 0.9, duration: 80, useNativeDriver: true }),
+      Animated.timing(scale, { toValue: 1.05, duration: 120, useNativeDriver: true }),
+      Animated.timing(scale, { toValue: 1, duration: 120, useNativeDriver: true }),
+    ]).start(() => removeSelection(id));
   }
 
   return (
@@ -33,17 +51,17 @@ export function EventCard({ title, sport, league, startLabel, featured, tone }: 
       <Text style={styles.title}>{title}</Text>
       <Text style={styles.meta}>{league}</Text>
       <Text style={styles.time}>{startLabel}</Text>
-      <View style={styles.actions}>
+      <Animated.View style={[styles.actions, { transform: [{ scale }] }] }>
         {!isSelected ? (
-          <Text style={styles.add} onPress={handleAdd}>
-            ➕ Añadir
-          </Text>
+          <Pressable onPressIn={animatePressIn} onPressOut={animatePressOut} onPress={handleAdd} style={({ pressed }) => [{ opacity: pressed ? 0.9 : 1 }]}>
+            <Text style={styles.add}>➕ Añadir</Text>
+          </Pressable>
         ) : (
-          <Text style={styles.remove} onPress={handleRemove}>
-            ❌ Quitar
-          </Text>
+          <Pressable onPressIn={animatePressIn} onPressOut={animatePressOut} onPress={handleRemove} style={({ pressed }) => [{ opacity: pressed ? 0.9 : 1 }]}>
+            <Text style={styles.remove}>❌ Quitar</Text>
+          </Pressable>
         )}
-      </View>
+      </Animated.View>
     </View>
   );
 }

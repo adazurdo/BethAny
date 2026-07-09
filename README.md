@@ -129,25 +129,30 @@ docker compose down
 
 Si trabajas sin contenedores en alguna parte:
 
-### Frontend (Next.js)
+### Arranque completo
 ```bash
-cd frontend
-npm install
 npm run dev
 ```
 
-### Backend (FastAPI)
+Esto levanta la API local en Python y el frontend de Expo al mismo tiempo.
+
+### Frontend (Expo)
+```bash
+cd frontend
+npm install
+npm start
+```
+
+### Backend (Python local API)
 ```bash
 cd backend
 python -m venv .venv
 source .venv/bin/activate  # Linux/macOS/WSL
 pip install -r requirements.txt
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+python scripts/run_local_api.py
 ```
 
-### Base de datos
-Si usas Docker, PostgreSQL quedará disponible en:
-- `localhost:5432`
+Si abres la app desde un dispositivo físico, define `EXPO_PUBLIC_BETHANY_API_URL` con la IP de tu máquina y el puerto `8000`.
 
 ---
 

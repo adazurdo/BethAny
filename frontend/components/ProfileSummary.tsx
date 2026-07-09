@@ -3,6 +3,7 @@ import { colors, radii, spacing } from "../theme";
 
 type ProfileSummaryProps = {
   displayName: string;
+  identifier?: string;
   avatarUrl: string;
   elo: number;
   rankLabel: string;
@@ -11,12 +12,22 @@ type ProfileSummaryProps = {
   bio: string;
 };
 
-export function ProfileSummary({ displayName, avatarUrl, elo, rankLabel, winRate, streak, bio }: ProfileSummaryProps) {
+export function ProfileSummary({ displayName, identifier, avatarUrl, elo, rankLabel, winRate, streak, bio }: ProfileSummaryProps) {
+  const identifierLabel = identifier ? (identifier.includes("@") ? "Correo de acceso" : "Usuario de acceso") : "Cuenta";
+
   return (
     <View style={styles.container}>
       <Image source={{ uri: avatarUrl }} style={styles.avatar} />
       <View style={styles.textBlock}>
         <Text style={styles.name}>{displayName}</Text>
+        {identifier ? (
+          <View style={styles.identityBadge}>
+            <Text style={styles.identityBadgeLabel}>{identifierLabel}</Text>
+            <Text style={styles.identityBadgeValue} numberOfLines={1}>
+              {identifier}
+            </Text>
+          </View>
+        ) : null}
         <Text style={styles.label}>{rankLabel}</Text>
         <Text style={styles.bio}>{bio}</Text>
       </View>
@@ -60,6 +71,28 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: "900",
     color: colors.text,
+  },
+  identityBadge: {
+    alignSelf: "flex-start",
+    backgroundColor: colors.surfaceSoft,
+    borderRadius: 999,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: 2,
+  },
+  identityBadgeLabel: {
+    color: colors.muted,
+    fontSize: 11,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
+  },
+  identityBadgeValue: {
+    color: colors.text,
+    fontSize: 13,
+    fontWeight: "800",
   },
   label: {
     fontSize: 14,
