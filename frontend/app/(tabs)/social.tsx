@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { useAuth } from "../../components/AuthContext";
 import { FriendRow } from "../../components/FriendRow";
 import { GroupCard } from "../../components/GroupCard";
 import { SectionCard } from "../../components/SectionCard";
@@ -7,12 +8,15 @@ import { colors, radii, spacing } from "../../theme";
 import { mockFriends, predictionGroups } from "../../data";
 
 export default function SocialScreen() {
-  const [friends, setFriends] = useState(mockFriends);
+  const { account, updateAccount } = useAuth();
+  const friends = account?.friends ?? mockFriends;
 
   const selectedFriends = useMemo(() => friends.filter((friend) => friend.isSelected), [friends]);
 
-  const toggleFriend = (id: string) => {
-    setFriends((current) => current.map((friend) => (friend.id === id ? { ...friend, isSelected: !friend.isSelected } : friend)));
+  const toggleFriend = async (id: string) => {
+    if (!account) return;
+    const nextFriends = friends.map((friend) => (friend.id === id ? { ...friend, isSelected: !friend.isSelected } : friend));
+    await updateAccount({ friends: nextFriends });
   };
 
   return (

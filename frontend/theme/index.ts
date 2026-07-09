@@ -37,7 +37,7 @@ export const shadows = {
 };
 
 export const fonts = {
-  system: "System",
+  system: "Inter",
 };
 
 export const fontSizes = {

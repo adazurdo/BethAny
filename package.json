@@ -3,5 +3,10 @@
   "private": true,
   "scripts": {
     "start": "npm --prefix frontend start"
+  },
+  "dependencies": {
+    "@expo-google-fonts/inter": "^0.4.2",
+    "expo-font": "^56.0.7",
+    "react-native-svg": "^15.15.5"
   }
 }

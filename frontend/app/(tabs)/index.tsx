@@ -1,4 +1,5 @@
 import { ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { useAuth } from "../../components/AuthContext";
 import { EventCard } from "../../components/EventCard";
 import { SectionCard } from "../../components/SectionCard";
 import { colors, radii, spacing } from "../../theme";
@@ -6,9 +7,12 @@ import { globalRanking, mockEvents } from "../../data";
 import DesktopShell from "../../components/DesktopShell";
 
 export default function HomeScreen() {
+  const { account } = useAuth();
   const { width } = useWindowDimensions();
   const isDesktop = width >= 900;
   const featured = mockEvents.filter((event) => event.featured);
+  const displayName = account?.profile.displayName ?? "bethany_fox";
+  const elo = account?.profile.elo ?? 1768;
 
   const content = (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
@@ -16,8 +20,9 @@ export default function HomeScreen() {
         <Text style={styles.kicker}>BethAny</Text>
         <Text style={styles.title}>Predict better. Compete louder.</Text>
         <Text style={styles.subtitle}>
-          Mock-only MVP for competitive predictions with friends and a global ranking snapshot.
+          Welcome back, {displayName}. Your account keeps bets, elo, profile, and friends ready for the next session.
         </Text>
+        <Text style={styles.heroStat}>Elo actual: {elo}</Text>
       </View>
 
       <SectionCard title="Featured events" subtitle="Top stories from the current moment">
@@ -91,6 +96,10 @@ const styles = StyleSheet.create({
     color: colors.surface,
     fontSize: 16,
     lineHeight: 24,
+  },
+  heroStat: {
+    color: colors.surface,
+    fontWeight: "900",
   },
   grid: {
     gap: spacing.sm,
