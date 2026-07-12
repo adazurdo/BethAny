@@ -1,3 +1,7 @@
+from .env import load_dotenv
+
+load_dotenv()
+
 from .fixtures import (
     get_mock_events,
     get_mock_friends,
@@ -15,6 +19,24 @@ from .account_repository import (
     save_account_state,
 )
 from .api import create_app, serve
-from .models import AccountProfile, BetRecord, FriendshipData, SessionState, UserAccount
+from .mock_dataset_repository import (
+    CONFIGURED_COMPETITIONS,
+    get_competition_source,
+    get_snapshot,
+    initialize_repository as initialize_mock_dataset_repository,
+    list_competition_sources,
+)
+from .mock_dataset_service import sync_competition
+from .models import (
+    AccountProfile,
+    BetRecord,
+    CompetitionSource,
+    FriendshipData,
+    MockDatasetSnapshot,
+    MockMatch,
+    SessionState,
+    TeamSnapshot,
+    UserAccount,
+)
 from .ranking import build_global_ranking_summary
 from .session_state import create_default_session_state, set_active_account

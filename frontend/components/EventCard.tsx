@@ -1,6 +1,12 @@
 import { StyleSheet, Text, View, Animated, Pressable } from "react-native";
 import { colors, radii, spacing, shadows } from "../theme";
 import { useBetSlip } from "./BetSlipContext";
+import { TeamBadge } from "./TeamBadge";
+
+type TeamInfo = {
+  name: string;
+  crestUrl?: string;
+};
 
 type EventCardProps = {
   title: string;
@@ -9,9 +15,11 @@ type EventCardProps = {
   startLabel: string;
   featured?: boolean;
   tone?: string;
+  homeTeam?: TeamInfo;
+  awayTeam?: TeamInfo;
 };
 
-export function EventCard({ title, sport, league, startLabel, featured, tone }: EventCardProps) {
+export function EventCard({ title, sport, league, startLabel, featured, tone, homeTeam, awayTeam }: EventCardProps) {
   const { addSelection, removeSelection, selections } = useBetSlip();
 
   const id = title;
@@ -51,7 +59,25 @@ export function EventCard({ title, sport, league, startLabel, featured, tone }: 
         </View>
         {featured ? <Text style={styles.liveChip}>DESTACADO</Text> : null}
       </View>
-      <Text style={styles.title}>{title}</Text>
+      {homeTeam && awayTeam ? (
+        <View style={styles.matchupRow}>
+          <View style={styles.teamColumn}>
+            <TeamBadge name={homeTeam.name} crestUrl={homeTeam.crestUrl} size={56} />
+            <Text style={styles.teamName} numberOfLines={2}>
+              {homeTeam.name}
+            </Text>
+          </View>
+          <Text style={styles.vsLabel}>vs</Text>
+          <View style={styles.teamColumn}>
+            <TeamBadge name={awayTeam.name} crestUrl={awayTeam.crestUrl} size={56} />
+            <Text style={styles.teamName} numberOfLines={2}>
+              {awayTeam.name}
+            </Text>
+          </View>
+        </View>
+      ) : (
+        <Text style={styles.title}>{title}</Text>
+      )}
       <View style={styles.metaRow}>
         <Text style={styles.meta}>{league}</Text>
         <Text style={styles.time}>{startLabel}</Text>
@@ -127,6 +153,30 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     lineHeight: 22,
     marginBottom: 2,
+  },
+  matchupRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+    marginTop: 2,
+  },
+  teamColumn: {
+    flex: 1,
+    alignItems: "center",
+    gap: 8,
+  },
+  teamName: {
+    color: colors.text,
+    fontSize: 12,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  vsLabel: {
+    color: colors.muted,
+    fontWeight: "900",
+    fontSize: 12,
+    marginHorizontal: spacing.sm,
   },
   metaRow: {
     flexDirection: "row",

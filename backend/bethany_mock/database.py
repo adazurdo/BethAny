@@ -41,6 +41,27 @@ def initialize_database() -> None:
                 FOREIGN KEY(account_id) REFERENCES accounts(id) ON DELETE CASCADE
             )
         """)
+        connection.execute("""
+            CREATE TABLE IF NOT EXISTS competition_sources (
+                code TEXT PRIMARY KEY,
+                external_code TEXT NOT NULL,
+                display_name TEXT NOT NULL,
+                sport TEXT NOT NULL,
+                sync_status TEXT NOT NULL DEFAULT 'never_synced',
+                last_synced_at TEXT,
+                last_error TEXT
+            )
+        """)
+        connection.execute("""
+            CREATE TABLE IF NOT EXISTS mock_dataset_snapshots (
+                competition_code TEXT PRIMARY KEY,
+                version INTEGER NOT NULL,
+                generated_at TEXT NOT NULL,
+                teams_json TEXT NOT NULL,
+                matches_json TEXT NOT NULL,
+                FOREIGN KEY(competition_code) REFERENCES competition_sources(code) ON DELETE CASCADE
+            )
+        """)
         connection.commit()
 
 

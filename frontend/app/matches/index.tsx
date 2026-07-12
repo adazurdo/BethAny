@@ -1,19 +1,95 @@
-import { useMemo } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import DesktopShell from "../../components/DesktopShell";
 import { SectionCard } from "../../components/SectionCard";
 import { EventCard } from "../../components/EventCard";
 import { mockEvents } from "../../data";
+import {
+  CompetitionSource,
+  MockCompetitionMatch,
+  MockTeam,
+  fetchMockCompetitionMatches,
+  fetchMockCompetitions,
+  syncMockCompetition,
+} from "../../data/mockCompetitions";
 import { colors, radii, spacing } from "../../theme";
 
 export default function MatchesByCompetitionScreen() {
   const params = useLocalSearchParams<{ competition?: string }>();
   const competition = params.competition ?? "Mundial 2026";
 
-  const competitionEvents = useMemo(() => {
-    return mockEvents.filter((event) => event.league === competition);
+  // Football competitions are backed by football-data.org mocks (User Story 1/2);
+  // other sports keep the existing static mocks in this phase.
+  const [source, setSource] = useState<CompetitionSource | null>(null);
+  const [teams, setTeams] = useState<MockTeam[] | null>(null);
+  const [matches, setMatches] = useState<MockCompetitionMatch[] | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
+
+  const loadCompetition = useCallback(async () => {
+    setLoading(true);
+    setSyncMessage(null);
+    try {
+      const competitions = await fetchMockCompetitions();
+      const match = competitions.find((item) => item.displayName === competition);
+      if (!match) {
+        setSource(null);
+        setTeams(null);
+        setMatches(null);
+        return;
+      }
+      const result = await fetchMockCompetitionMatches(match.code);
+      setSource(result.source);
+      setTeams(result.teams);
+      setMatches(result.matches);
+    } catch {
+      setSource(null);
+      setTeams(null);
+      setMatches(null);
+    } finally {
+      setLoading(false);
+    }
   }, [competition]);
+
+  useEffect(() => {
+    loadCompetition();
+  }, [loadCompetition]);
+
+  const staticEvents = useMemo(() => mockEvents.filter((event) => event.league === competition), [competition]);
+
+  const teamsById = useMemo(() => {
+    const map = new Map<string, MockTeam>();
+    (teams ?? []).forEach((team) => map.set(team.id, team));
+    return map;
+  }, [teams]);
+
+  const isFootballBacked = source !== null;
+  const isStale = source?.syncStatus === "stale" || source?.syncStatus === "error";
+
+  async function handleSync() {
+    if (!source) return;
+    setSyncing(true);
+    setSyncMessage(null);
+    try {
+      const result = await syncMockCompetition(source.code);
+      if (result.ok) {
+        setTeams(result.teams);
+        setMatches(result.matches);
+        setSyncMessage(null);
+      } else {
+        setSyncMessage(result.error ?? "No se pudo sincronizar la fuente externa.");
+      }
+      const refreshed = await fetchMockCompetitions();
+      const match = refreshed.find((item) => item.code === source.code);
+      if (match) setSource(match);
+    } catch {
+      setSyncMessage("No se pudo contactar el backend local.");
+    } finally {
+      setSyncing(false);
+    }
+  }
 
   const content = (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
@@ -21,12 +97,73 @@ export default function MatchesByCompetitionScreen() {
         <Text style={styles.kicker}>Competicion</Text>
         <Text style={styles.title}>{competition}</Text>
         <Text style={styles.subtitle}>Partidos mock disponibles para esta seccion.</Text>
+
+        {isFootballBacked ? (
+          <View style={styles.syncRow}>
+            <Text style={styles.syncInfo}>
+              {source?.lastSyncedAt ? `Ultima sincronizacion: ${new Date(source.lastSyncedAt).toLocaleString()}` : "Aun no sincronizado"}
+            </Text>
+            <Pressable
+              onPress={handleSync}
+              disabled={syncing}
+              style={({ pressed }) => [styles.syncButton, pressed || syncing ? styles.syncButtonPressed : null]}
+            >
+              <Text style={styles.syncButtonText}>{syncing ? "Sincronizando..." : "Actualizar partidos"}</Text>
+            </Pressable>
+          </View>
+        ) : null}
       </View>
 
-      <SectionCard title="Partidos" subtitle={`${competitionEvents.length} eventos mock`}>
+      {isFootballBacked && isStale ? (
+        <View style={styles.staleBanner}>
+          <Text style={styles.staleText}>
+            No se pudo actualizar desde football-data.org{source?.lastError ? `: ${source.lastError}` : "."} Mostrando el ultimo dataset valido.
+          </Text>
+        </View>
+      ) : null}
+
+      {syncMessage ? (
+        <View style={styles.staleBanner}>
+          <Text style={styles.staleText}>{syncMessage}</Text>
+        </View>
+      ) : null}
+
+      <SectionCard
+        title="Partidos"
+        subtitle={loading ? "Cargando..." : `${isFootballBacked ? matches?.length ?? 0 : staticEvents.length} eventos mock`}
+      >
         <View style={styles.grid}>
-          {competitionEvents.length > 0 ? (
-            competitionEvents.map((event) => <EventCard key={event.id} {...event} />)
+          {loading ? (
+            <ActivityIndicator color={colors.primary} />
+          ) : isFootballBacked ? (
+            matches && matches.length > 0 ? (
+              matches.map((match) => (
+                <EventCard
+                  key={match.id}
+                  title={`${match.homeTeamName} vs ${match.awayTeamName}`}
+                  sport="Football"
+                  league={competition}
+                  startLabel={match.kickoffLabel}
+                  featured={false}
+                  homeTeam={{ name: match.homeTeamName, crestUrl: teamsById.get(match.homeTeamId)?.crestUrl }}
+                  awayTeam={{ name: match.awayTeamName, crestUrl: teamsById.get(match.awayTeamId)?.crestUrl }}
+                />
+              ))
+            ) : (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyTitle}>No hay partidos mock en esta competencia</Text>
+                <Text style={styles.emptyText}>Sincroniza con football-data.org para generar el catalogo de equipos y partidos.</Text>
+                <Pressable
+                  onPress={handleSync}
+                  disabled={syncing}
+                  style={({ pressed }) => [styles.syncButton, pressed || syncing ? styles.syncButtonPressed : null]}
+                >
+                  <Text style={styles.syncButtonText}>{syncing ? "Sincronizando..." : "Sincronizar ahora"}</Text>
+                </Pressable>
+              </View>
+            )
+          ) : staticEvents.length > 0 ? (
+            staticEvents.map((event) => <EventCard key={event.id} {...event} />)
           ) : (
             <View style={styles.emptyState}>
               <Text style={styles.emptyTitle}>No hay partidos mock en esta competencia</Text>
@@ -76,6 +213,18 @@ const styles = StyleSheet.create({
     color: colors.muted,
     fontSize: 14,
   },
+  syncRow: {
+    marginTop: spacing.sm,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    flexWrap: "wrap",
+    gap: spacing.sm,
+  },
+  syncInfo: {
+    color: colors.muted,
+    fontSize: 12,
+  },
   grid: {
     gap: spacing.sm,
   },
@@ -94,5 +243,32 @@ const styles = StyleSheet.create({
   emptyText: {
     color: colors.muted,
     marginTop: 4,
+  },
+  staleBanner: {
+    backgroundColor: "rgba(255,184,77,0.12)",
+    borderRadius: radii.md,
+    padding: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.warning,
+  },
+  staleText: {
+    color: colors.warning,
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  syncButton: {
+    marginTop: spacing.sm,
+    alignSelf: "flex-start",
+    backgroundColor: colors.primary,
+    borderRadius: radii.sm,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+  },
+  syncButtonPressed: {
+    opacity: 0.85,
+  },
+  syncButtonText: {
+    color: colors.background,
+    fontWeight: "900",
   },
 });

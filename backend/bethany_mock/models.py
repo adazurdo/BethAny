@@ -81,6 +81,67 @@ class UserAccount:
         }
 
 
+@dataclass
+class TeamSnapshot:
+    id: str
+    name: str
+    short_name: str
+    crest_url: str
+    venue: str
+    squad: list[str] = field(default_factory=list)
+    standing_position: int | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
+class MockMatch:
+    id: str
+    competition_code: str
+    home_team_id: str
+    home_team_name: str
+    away_team_id: str
+    away_team_name: str
+    kickoff_label: str
+    status: str = "scheduled"
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
+class CompetitionSource:
+    code: str
+    external_code: str
+    display_name: str
+    sport: str
+    sync_status: str = "never_synced"
+    last_synced_at: str | None = None
+    last_error: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
+class MockDatasetSnapshot:
+    competition_code: str
+    version: int
+    generated_at: str
+    teams: list[TeamSnapshot] = field(default_factory=list)
+    matches: list[MockMatch] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "competitionCode": self.competition_code,
+            "version": self.version,
+            "generatedAt": self.generated_at,
+            "teams": [team.to_dict() for team in self.teams],
+            "matches": [match.to_dict() for match in self.matches],
+        }
+
+
 def create_default_profile(display_name: str | None = None) -> AccountProfile:
     profile = AccountProfile(
         display_name=display_name or "bethany_fox",

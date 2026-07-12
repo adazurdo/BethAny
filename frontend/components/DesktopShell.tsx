@@ -1,13 +1,19 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { StyleSheet, View, Text, useWindowDimensions, ScrollView, Pressable } from "react-native";
 import { colors, spacing, radii, shadows } from "../theme";
 import { useBetSlip } from "./BetSlipContext";
 import { fontSizes, fontWeights } from "../theme";
 import { useLocalSearchParams, usePathname, useRouter } from "expo-router";
+import { fetchMockCompetitions } from "../data/mockCompetitions";
 
 type Props = {
   children: React.ReactNode;
 };
+
+// Fallback used until the football-data.org-backed competitions load, or if the
+// local API is unreachable; other sports keep static mocks in this phase.
+const DEFAULT_COMPETITIONS = ["Mundial 2026", "LaLiga", "Champions", "ATP Wimbledon", "Moto GP"];
+const STATIC_ONLY_COMPETITIONS = ["ATP Wimbledon", "Moto GP"];
 
 export function DesktopShell({ children }: Props) {
   const router = useRouter();
@@ -17,7 +23,29 @@ export function DesktopShell({ children }: Props) {
   const showThreeCols = width >= 900;
   const activeCompetition = params.competition ?? "Mundial 2026";
 
-  const competitions = ["Mundial 2026", "LaLiga", "Champions", "ATP Wimbledon", "Moto GP"];
+  const [footballCompetitionNames, setFootballCompetitionNames] = useState<string[] | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchMockCompetitions()
+      .then((sources) => {
+        if (!cancelled) {
+          setFootballCompetitionNames(sources.map((source) => source.displayName));
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setFootballCompetitionNames(null);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const competitions = footballCompetitionNames
+    ? [...footballCompetitionNames, ...STATIC_ONLY_COMPETITIONS]
+    : DEFAULT_COMPETITIONS;
 
   function isCompetitionActive(label: string) {
     return pathname === "/matches" && activeCompetition === label;

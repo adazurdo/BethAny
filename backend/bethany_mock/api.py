@@ -6,6 +6,7 @@ from dataclasses import asdict
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
+from urllib.parse import urlsplit
 
 from .account_repository import (
     authenticate_account,
@@ -14,6 +15,13 @@ from .account_repository import (
     register_account,
     replace_account_state,
 )
+from .mock_dataset_repository import (
+    get_competition_source,
+    get_snapshot,
+    initialize_repository as initialize_mock_dataset_repository,
+    list_competition_sources,
+)
+from .mock_dataset_service import sync_competition
 from .models import AccountProfile, BetRecord, FriendshipData, SessionState
 
 SESSION = SessionState()
@@ -41,6 +49,10 @@ def _read_json(handler: BaseHTTPRequestHandler) -> dict[str, Any]:
 
 def _serialize_account(account) -> dict[str, Any]:
     return account.to_dict()
+
+
+def _split_path(path: str) -> list[str]:
+    return [segment for segment in urlsplit(path).path.split("/") if segment]
 
 
 def _coerce_profile(payload: dict[str, Any]) -> AccountProfile:
@@ -99,6 +111,36 @@ class BethanyRequestHandler(BaseHTTPRequestHandler):
             _json_response(self, HTTPStatus.OK, _serialize_account(account))
             return
 
+        segments = _split_path(self.path)
+        if segments[:2] == ["mock", "competitions"]:
+            if len(segments) == 2:
+                competitions = [source.to_dict() for source in list_competition_sources()]
+                _json_response(self, HTTPStatus.OK, {"competitions": competitions})
+                return
+
+            code = segments[2]
+            source = get_competition_source(code)
+            if source is None:
+                _json_response(self, HTTPStatus.NOT_FOUND, {"error": "competicion no soportada"})
+                return
+            snapshot = get_snapshot(code)
+
+            if len(segments) == 3:
+                _json_response(self, HTTPStatus.OK, {"source": source.to_dict(), "snapshot": snapshot.to_dict() if snapshot else None})
+                return
+
+            if len(segments) == 4 and segments[3] == "matches":
+                _json_response(
+                    self,
+                    HTTPStatus.OK,
+                    {
+                        "source": source.to_dict(),
+                        "teams": [team.to_dict() for team in snapshot.teams] if snapshot else [],
+                        "matches": [match.to_dict() for match in snapshot.matches] if snapshot else [],
+                    },
+                )
+                return
+
         _json_response(self, HTTPStatus.NOT_FOUND, {"error": "not found"})
 
     def do_POST(self) -> None:  # noqa: N802
@@ -138,6 +180,27 @@ class BethanyRequestHandler(BaseHTTPRequestHandler):
             _json_response(self, HTTPStatus.OK, {"ok": True})
             return
 
+        segments = _split_path(self.path)
+        if segments[:2] == ["mock", "competitions"] and len(segments) == 4 and segments[3] == "sync":
+            code = segments[2]
+            try:
+                result = sync_competition(code)
+            except LookupError as exc:
+                _json_response(self, HTTPStatus.NOT_FOUND, {"error": str(exc)})
+                return
+
+            payload: dict[str, Any] = {
+                "ok": result["ok"],
+                "source": result["source"].to_dict() if result.get("source") else None,
+                "snapshot": result["snapshot"].to_dict() if result.get("snapshot") else None,
+            }
+            if not result["ok"]:
+                payload["error"] = result["error"]
+            # A failed external sync is an expected, handled outcome (fallback to last snapshot),
+            # not a server error, so it is still reported with 200 and an "ok" flag in the body.
+            _json_response(self, HTTPStatus.OK, payload)
+            return
+
         _json_response(self, HTTPStatus.NOT_FOUND, {"error": "not found"})
 
     def do_PUT(self) -> None:  # noqa: N802
@@ -168,6 +231,7 @@ class BethanyRequestHandler(BaseHTTPRequestHandler):
 
 def create_app(host: str = "127.0.0.1", port: int = 8000) -> ThreadingHTTPServer:
     initialize_repository()
+    initialize_mock_dataset_repository()
     return ThreadingHTTPServer((host, port), BethanyRequestHandler)
 
 
