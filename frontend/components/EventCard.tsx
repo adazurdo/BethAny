@@ -1,5 +1,5 @@
 import { StyleSheet, Text, View, Animated, Pressable } from "react-native";
-import { colors, radii, spacing } from "../theme";
+import { colors, radii, spacing, shadows } from "../theme";
 import { useBetSlip } from "./BetSlipContext";
 
 type EventCardProps = {
@@ -45,20 +45,37 @@ export function EventCard({ title, sport, league, startLabel, featured, tone }: 
 
   return (
     <View style={[styles.card, featured ? styles.featured : undefined]}>
-      <View style={[styles.badge, tone ? { backgroundColor: colors.surface } : undefined]}>
-        <Text style={styles.badgeText}>{sport}</Text>
+      <View style={styles.topRow}>
+        <View style={[styles.badge, tone ? { backgroundColor: colors.surfaceSoft } : undefined]}>
+          <Text style={styles.badgeText}>{sport}</Text>
+        </View>
+        {featured ? <Text style={styles.liveChip}>DESTACADO</Text> : null}
       </View>
       <Text style={styles.title}>{title}</Text>
-      <Text style={styles.meta}>{league}</Text>
-      <Text style={styles.time}>{startLabel}</Text>
+      <View style={styles.metaRow}>
+        <Text style={styles.meta}>{league}</Text>
+        <Text style={styles.time}>{startLabel}</Text>
+      </View>
       <Animated.View style={[styles.actions, { transform: [{ scale }] }] }>
         {!isSelected ? (
-          <Pressable onPressIn={animatePressIn} onPressOut={animatePressOut} onPress={handleAdd} style={({ pressed }) => [{ opacity: pressed ? 0.9 : 1 }]}>
-            <Text style={styles.add}>➕ Añadir</Text>
+          <Pressable
+            onPressIn={animatePressIn}
+            onPressOut={animatePressOut}
+            onPress={handleAdd}
+            style={({ pressed }) => [styles.addButton, pressed ? styles.pressed : null]}
+          >
+            <Text style={styles.addLabel}>Apostar</Text>
+            <Text style={styles.addOdd}>2.15</Text>
           </Pressable>
         ) : (
-          <Pressable onPressIn={animatePressIn} onPressOut={animatePressOut} onPress={handleRemove} style={({ pressed }) => [{ opacity: pressed ? 0.9 : 1 }]}>
-            <Text style={styles.remove}>❌ Quitar</Text>
+          <Pressable
+            onPressIn={animatePressIn}
+            onPressOut={animatePressOut}
+            onPress={handleRemove}
+            style={({ pressed }) => [styles.removeButton, pressed ? styles.pressed : null]}
+          >
+            <Text style={styles.removeLabel}>En boleto</Text>
+            <Text style={styles.removeAction}>Quitar</Text>
           </Pressable>
         )}
       </Animated.View>
@@ -74,59 +91,102 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
     borderWidth: 1,
     borderColor: colors.border,
-    ...{
-      shadowColor: "#000",
-      shadowOpacity: 0.35,
-      shadowOffset: { width: 0, height: 8 },
-      shadowRadius: 18,
-      elevation: 6,
-    },
+    ...shadows.card,
   },
   featured: {
     borderColor: colors.primary,
     backgroundColor: colors.surfaceSoft,
   },
+  topRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 4,
+  },
   badge: {
     alignSelf: "flex-start",
     paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
+    paddingVertical: 5,
+    borderRadius: radii.pill,
+    backgroundColor: colors.highlight,
   },
   badgeText: {
-    color: colors.surface,
-    fontSize: 12,
+    color: colors.text,
+    fontSize: 11,
     fontWeight: "800",
+    letterSpacing: 0.2,
+  },
+  liveChip: {
+    color: colors.warning,
+    fontSize: 11,
+    fontWeight: "900",
   },
   title: {
     color: colors.text,
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: "800",
+    lineHeight: 22,
+    marginBottom: 2,
+  },
+  metaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   meta: {
     color: colors.muted,
-    fontSize: 13,
+    fontSize: 12,
   },
   time: {
-    color: colors.primary,
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  actions: {
-    marginTop: 8,
-    flexDirection: "row",
-    gap: 12,
-  },
-  add: {
-    color: colors.primary,
+    color: colors.accent,
+    fontSize: 12,
     fontWeight: "800",
   },
-  remove: {
-    color: colors.muted,
+  actions: {
+    marginTop: 10,
+    flexDirection: "row",
+  },
+  addButton: {
+    flex: 1,
+    backgroundColor: colors.primary,
+    borderRadius: radii.sm,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    ...shadows.glow,
+  },
+  addLabel: {
+    color: colors.background,
+    fontWeight: "900",
+    letterSpacing: 0.2,
+  },
+  addOdd: {
+    color: colors.background,
+    fontWeight: "900",
+  },
+  removeButton: {
+    flex: 1,
+    backgroundColor: "rgba(111,132,255,0.18)",
+    borderRadius: radii.sm,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderWidth: 1,
+    borderColor: colors.highlight,
+  },
+  removeLabel: {
+    color: colors.text,
+    fontWeight: "900",
+  },
+  removeAction: {
+    color: colors.accent,
     fontWeight: "700",
   },
-  title: {
-    color: colors.text,
-    fontSize: 18,
-    fontWeight: "900",
+  pressed: {
+    opacity: 0.9,
   },
 });

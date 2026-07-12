@@ -2,7 +2,7 @@ import { ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-n
 import { useAuth } from "../../components/AuthContext";
 import { EventCard } from "../../components/EventCard";
 import { SectionCard } from "../../components/SectionCard";
-import { colors, radii, spacing } from "../../theme";
+import { colors, radii, spacing, shadows } from "../../theme";
 import { globalRanking, mockEvents } from "../../data";
 import DesktopShell from "../../components/DesktopShell";
 
@@ -17,12 +17,29 @@ export default function HomeScreen() {
   const content = (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <View style={styles.hero}>
-        <Text style={styles.kicker}>BethAny</Text>
-        <Text style={styles.title}>Predict better. Compete louder.</Text>
-        <Text style={styles.subtitle}>
-          Welcome back, {displayName}. Your account keeps bets, elo, profile, and friends ready for the next session.
-        </Text>
-        <Text style={styles.heroStat}>Elo actual: {elo}</Text>
+        <View style={styles.heroHeader}>
+          <Text style={styles.kicker}>Mundial 2026</Text>
+          <Text style={styles.liveChip}>En directo</Text>
+        </View>
+        <Text style={styles.title}>Mercados calientes y picks en vivo</Text>
+        <Text style={styles.subtitle}>Bienvenido, {displayName}. Cuotas listas, ritmo rapido y ranking siempre visible.</Text>
+        <View style={styles.heroStatsRow}>
+          <View style={styles.statCard}>
+            <Text style={styles.statLabel}>Elo actual</Text>
+            <Text style={styles.statValue}>{elo}</Text>
+          </View>
+          <View style={styles.statCard}>
+            <Text style={styles.statLabel}>Racha</Text>
+            <Text style={styles.statValue}>+4</Text>
+          </View>
+        </View>
+      </View>
+
+      <View style={styles.marketTabs}>
+        <Text style={[styles.marketTab, styles.marketTabActive]}>Goleadores</Text>
+        <Text style={styles.marketTab}>Partidos</Text>
+        <Text style={styles.marketTab}>Equipos</Text>
+        <Text style={styles.marketTab}>Especiales</Text>
       </View>
 
       <SectionCard title="Featured events" subtitle="Top stories from the current moment">
@@ -75,31 +92,84 @@ const styles = StyleSheet.create({
     paddingBottom: 96,
   },
   hero: {
-    gap: spacing.sm,
-    backgroundColor: colors.primary,
+    gap: spacing.md,
+    backgroundColor: colors.surface,
     borderRadius: radii.lg,
     padding: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    ...shadows.card,
+  },
+  heroHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   kicker: {
-    color: colors.surface,
+    color: colors.accent,
     fontWeight: "900",
     textTransform: "uppercase",
-    letterSpacing: 1.2,
+    letterSpacing: 0.8,
+    fontSize: 12,
+  },
+  liveChip: {
+    color: colors.warning,
+    fontWeight: "900",
+    fontSize: 12,
   },
   title: {
-    color: colors.surface,
-    fontSize: 34,
-    lineHeight: 40,
+    color: colors.text,
+    fontSize: 31,
+    lineHeight: 36,
     fontWeight: "900",
   },
   subtitle: {
-    color: colors.surface,
-    fontSize: 16,
-    lineHeight: 24,
+    color: colors.muted,
+    fontSize: 15,
+    lineHeight: 22,
   },
-  heroStat: {
-    color: colors.surface,
+  heroStatsRow: {
+    flexDirection: "row",
+    gap: spacing.sm,
+  },
+  statCard: {
+    flex: 1,
+    backgroundColor: colors.surfaceSoft,
+    borderRadius: radii.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.sm,
+  },
+  statLabel: {
+    color: colors.muted,
+    fontSize: 12,
+    marginBottom: 4,
+  },
+  statValue: {
+    color: colors.primary,
     fontWeight: "900",
+    fontSize: 22,
+  },
+  marketTabs: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm,
+  },
+  marketTab: {
+    color: colors.text,
+    backgroundColor: colors.surfaceSoft,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: radii.pill,
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  marketTabActive: {
+    backgroundColor: "rgba(39,224,163,0.2)",
+    borderColor: colors.primary,
+    color: colors.primary,
   },
   grid: {
     gap: spacing.sm,
@@ -126,14 +196,19 @@ const styles = StyleSheet.create({
   rankingRow: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 10,
+    borderRadius: radii.sm,
+    backgroundColor: colors.surfaceSoft,
+    borderWidth: 1,
+    borderColor: colors.border,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: "transparent",
   },
   rankingPosition: {
     width: 42,
     fontWeight: "900",
-    color: colors.primaryDark,
+    color: colors.primary,
   },
   rankingTextBlock: {
     flex: 1,

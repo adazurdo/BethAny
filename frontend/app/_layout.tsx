@@ -15,6 +15,7 @@ export default function RootLayout() {
             <Stack.Screen name="(auth)" />
             <Stack.Screen name="(tabs)" />
             <Stack.Screen name="ranking/index" options={{ title: "Ranking" }} />
+            <Stack.Screen name="matches/index" options={{ title: "Partidos" }} />
           </Stack>
         </BetSlipProvider>
       </AuthProvider>

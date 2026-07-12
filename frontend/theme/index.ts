@@ -1,15 +1,17 @@
 export const colors = {
-  background: "#071427", // deep navy background for contrast
-  surface: "#0B1A2A", // card surfaces
-  surfaceSoft: "#0F2433", // slightly lighter card tone
-  primary: "#FF7A18", // vivid orange accent
-  primaryDark: "#D35400", // darker orange
-  text: "#FFFFFF", // white text on dark backgrounds
-  muted: "#9CA3AF", // secondary text
-  border: "#12232F", // subtle border
+  background: "#0A1440", // deep cobalt base
+  surface: "#132763", // elevated panel tone
+  surfaceSoft: "#1A2F74", // softer inner panel
+  primary: "#27E0A3", // vivid mint accent
+  primaryDark: "#14B889", // darker mint for pressed/contrast
+  text: "#F7FBFF", // near-white text
+  muted: "#A8B4D8", // secondary text
+  border: "#2A418A", // panel border
   success: "#16A34A",
-  danger: "#FF4D4F",
-  accent: "#FFB07A",
+  danger: "#F4506D",
+  accent: "#67B4FF",
+  warning: "#FFB84D",
+  highlight: "#6F84FF",
 };
 
 export const spacing = {
@@ -18,26 +20,35 @@ export const spacing = {
   md: 16,
   lg: 20,
   xl: 28,
+  xxl: 36,
 };
 
 export const radii = {
-  sm: 14,
-  md: 20,
-  lg: 28,
+  sm: 12,
+  md: 18,
+  lg: 26,
+  pill: 999,
 };
 
 export const shadows = {
   card: {
     shadowColor: "#000",
-    shadowOpacity: 0.45,
-    shadowOffset: { width: 0, height: 10 },
-    shadowRadius: 24,
+    shadowOpacity: 0.38,
+    shadowOffset: { width: 0, height: 14 },
+    shadowRadius: 28,
     elevation: 6,
+  },
+  glow: {
+    shadowColor: "#27E0A3",
+    shadowOpacity: 0.22,
+    shadowOffset: { width: 0, height: 0 },
+    shadowRadius: 14,
+    elevation: 2,
   },
 };
 
 export const fonts = {
-  system: "Inter",
+  system: "System",
 };
 
 export const fontSizes = {

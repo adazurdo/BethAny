@@ -56,14 +56,14 @@ const styles = StyleSheet.create({
   tabBar: {
     backgroundColor: colors.surface,
     borderTopColor: colors.border,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    height: 72,
+    borderTopWidth: 1,
+    height: 76,
     paddingTop: 10,
     paddingBottom: 12,
-    paddingHorizontal: 10,
+    paddingHorizontal: 12,
   },
   tabItem: {
-    borderRadius: 18,
+    borderRadius: 14,
     marginHorizontal: 4,
   },
   iconWrap: {
@@ -73,5 +73,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "800",
     marginBottom: 2,
+    letterSpacing: 0.2,
   },
 });

@@ -37,6 +37,7 @@ export default function SocialScreen() {
             <FriendRow
               key={friend.id}
               {...friend}
+              selected={friend.isSelected}
               onToggle={() => toggleFriend(friend.id)}
             />
           ))

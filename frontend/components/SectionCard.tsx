@@ -11,6 +11,7 @@ type SectionCardProps = {
 export function SectionCard({ title, subtitle, children }: SectionCardProps) {
   return (
     <View style={styles.card}>
+      <View style={styles.accentBar} />
       <View style={styles.header}>
         <Text style={styles.title}>{title}</Text>
         {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
@@ -25,21 +26,30 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderRadius: radii.lg,
     padding: spacing.lg,
+    paddingTop: spacing.md,
     borderWidth: 1,
     borderColor: colors.border,
     gap: spacing.md,
     ...shadows.card,
+  },
+  accentBar: {
+    height: 4,
+    width: 72,
+    borderRadius: radii.pill,
+    backgroundColor: colors.primary,
+    ...shadows.glow,
   },
   header: {
     gap: 4,
   },
   title: {
     color: colors.text,
-    fontSize: 20,
+    fontSize: 21,
     fontWeight: "900",
+    letterSpacing: 0.2,
   },
   subtitle: {
     color: colors.muted,
-    fontSize: 14,
+    fontSize: 13,
   },
 });
