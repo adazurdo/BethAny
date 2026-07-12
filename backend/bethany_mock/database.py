@@ -36,9 +36,20 @@ def initialize_database() -> None:
                 account_id TEXT PRIMARY KEY,
                 profile_json TEXT NOT NULL,
                 bets_json TEXT NOT NULL,
-                friends_json TEXT NOT NULL,
                 updated_at TEXT NOT NULL,
                 FOREIGN KEY(account_id) REFERENCES accounts(id) ON DELETE CASCADE
+            )
+        """)
+        connection.execute("""
+            CREATE TABLE IF NOT EXISTS friend_requests (
+                id TEXT PRIMARY KEY,
+                requester_account_id TEXT NOT NULL,
+                target_account_id TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'pending',
+                created_at TEXT NOT NULL,
+                responded_at TEXT,
+                FOREIGN KEY(requester_account_id) REFERENCES accounts(id) ON DELETE CASCADE,
+                FOREIGN KEY(target_account_id) REFERENCES accounts(id) ON DELETE CASCADE
             )
         """)
         connection.execute("""
@@ -60,6 +71,65 @@ def initialize_database() -> None:
                 teams_json TEXT NOT NULL,
                 matches_json TEXT NOT NULL,
                 FOREIGN KEY(competition_code) REFERENCES competition_sources(code) ON DELETE CASCADE
+            )
+        """)
+        connection.execute("""
+            CREATE TABLE IF NOT EXISTS prediction_groups (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                owner_account_id TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY(owner_account_id) REFERENCES accounts(id) ON DELETE CASCADE
+            )
+        """)
+        connection.execute("""
+            CREATE TABLE IF NOT EXISTS group_memberships (
+                id TEXT PRIMARY KEY,
+                group_id TEXT NOT NULL,
+                account_id TEXT NOT NULL,
+                joined_at TEXT NOT NULL,
+                UNIQUE(group_id, account_id),
+                FOREIGN KEY(group_id) REFERENCES prediction_groups(id) ON DELETE CASCADE,
+                FOREIGN KEY(account_id) REFERENCES accounts(id) ON DELETE CASCADE
+            )
+        """)
+        connection.execute("""
+            CREATE TABLE IF NOT EXISTS group_invites (
+                id TEXT PRIMARY KEY,
+                group_id TEXT NOT NULL,
+                inviter_account_id TEXT NOT NULL,
+                invitee_account_id TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'pending',
+                created_at TEXT NOT NULL,
+                responded_at TEXT,
+                FOREIGN KEY(group_id) REFERENCES prediction_groups(id) ON DELETE CASCADE,
+                FOREIGN KEY(inviter_account_id) REFERENCES accounts(id) ON DELETE CASCADE,
+                FOREIGN KEY(invitee_account_id) REFERENCES accounts(id) ON DELETE CASCADE
+            )
+        """)
+        connection.execute("""
+            CREATE TABLE IF NOT EXISTS custom_predictions (
+                id TEXT PRIMARY KEY,
+                group_id TEXT NOT NULL,
+                created_by_account_id TEXT NOT NULL,
+                question TEXT NOT NULL,
+                options_json TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY(group_id) REFERENCES prediction_groups(id) ON DELETE CASCADE,
+                FOREIGN KEY(created_by_account_id) REFERENCES accounts(id) ON DELETE CASCADE
+            )
+        """)
+        connection.execute("""
+            CREATE TABLE IF NOT EXISTS prediction_votes (
+                id TEXT PRIMARY KEY,
+                prediction_id TEXT NOT NULL,
+                account_id TEXT NOT NULL,
+                option TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                UNIQUE(prediction_id, account_id),
+                FOREIGN KEY(prediction_id) REFERENCES custom_predictions(id) ON DELETE CASCADE,
+                FOREIGN KEY(account_id) REFERENCES accounts(id) ON DELETE CASCADE
             )
         """)
         connection.commit()

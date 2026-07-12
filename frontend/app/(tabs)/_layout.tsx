@@ -1,6 +1,7 @@
 import { Redirect, Tabs } from "expo-router";
 import { StyleSheet, View } from "react-native";
 import { useAuth } from "../../components/AuthContext";
+import { HeaderAvatar } from "../../components/HeaderAvatar";
 import Icon from "../../components/Icon";
 import { colors } from "../../theme";
 
@@ -14,7 +15,12 @@ export default function TabsLayout() {
   return (
     <Tabs
       screenOptions={{
-        headerShown: false,
+        headerShown: true,
+        headerStyle: styles.header,
+        headerTitleStyle: styles.headerTitle,
+        headerTintColor: colors.text,
+        headerShadowVisible: false,
+        headerRight: () => <HeaderAvatar />,
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.muted,
         tabBarLabelStyle: styles.label,
@@ -48,11 +54,21 @@ export default function TabsLayout() {
           tabBarIcon: ({ color, focused }) => <Icon glyph="social" color={color as string} size={20} focused={focused} />,
         }}
       />
+      <Tabs.Screen name="groups/[groupId]" options={{ href: null, title: "Grupo" }} />
     </Tabs>
   );
 }
 
 const styles = StyleSheet.create({
+  header: {
+    backgroundColor: colors.background,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  headerTitle: {
+    color: colors.text,
+    fontWeight: "900",
+  },
   tabBar: {
     backgroundColor: colors.surface,
     borderTopColor: colors.border,

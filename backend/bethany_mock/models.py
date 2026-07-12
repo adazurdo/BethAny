@@ -15,7 +15,15 @@ class AccountProfile:
     bio: str
 
     def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
+        return {
+            "displayName": self.display_name,
+            "avatarUrl": self.avatar_url,
+            "elo": self.elo,
+            "rankLabel": self.rank_label,
+            "winRate": self.win_rate,
+            "streak": self.streak,
+            "bio": self.bio,
+        }
 
 
 @dataclass
@@ -30,13 +38,75 @@ class BetRecord:
 
 
 @dataclass
-class FriendshipData:
+class FriendRequest:
+    id: str
+    requester_account_id: str
+    target_account_id: str
+    status: str = "pending"
+    created_at: str = ""
+    responded_at: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
+class PredictionGroup:
     id: str
     name: str
-    avatar_url: str
-    sport_focus: str
-    status: str
-    is_selected: bool = False
+    owner_account_id: str
+    created_at: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
+class GroupMembership:
+    id: str
+    group_id: str
+    account_id: str
+    joined_at: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
+class GroupInvite:
+    id: str
+    group_id: str
+    inviter_account_id: str
+    invitee_account_id: str
+    status: str = "pending"
+    created_at: str = ""
+    responded_at: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
+class CustomPrediction:
+    id: str
+    group_id: str
+    created_by_account_id: str
+    question: str
+    options: list[str]
+    created_at: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
+class PredictionVote:
+    id: str
+    prediction_id: str
+    account_id: str
+    option: str
+    created_at: str
+    updated_at: str
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -66,7 +136,6 @@ class UserAccount:
         bio="Competitive predictor with a sharp eye for football, tennis, and esports.",
     ))
     bets: list[BetRecord] = field(default_factory=list)
-    friends: list[FriendshipData] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -77,7 +146,6 @@ class UserAccount:
             "lastLoginAt": self.last_login_at,
             "profile": self.profile.to_dict(),
             "bets": [bet.to_dict() for bet in self.bets],
-            "friends": [friend.to_dict() for friend in self.friends],
         }
 
 
@@ -162,10 +230,3 @@ def create_default_bets() -> list[BetRecord]:
     ]
 
 
-def create_default_friends() -> list[FriendshipData]:
-    return [
-        FriendshipData(id="friend-1", name="Marta Ruiz", avatar_url="https://i.pravatar.cc/150?img=32", sport_focus="Football", status="online", is_selected=True),
-        FriendshipData(id="friend-2", name="Alex Vega", avatar_url="https://i.pravatar.cc/150?img=47", sport_focus="Basketball", status="busy", is_selected=True),
-        FriendshipData(id="friend-3", name="Nerea Polo", avatar_url="https://i.pravatar.cc/150?img=12", sport_focus="Tennis", status="online", is_selected=False),
-        FriendshipData(id="friend-4", name="Sergio León", avatar_url="https://i.pravatar.cc/150?img=15", sport_focus="Esports", status="inactive", is_selected=False),
-    ]

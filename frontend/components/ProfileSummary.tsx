@@ -1,4 +1,4 @@
-import { Image, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { colors, radii, spacing } from "../theme";
 
 type ProfileSummaryProps = {
@@ -10,14 +10,38 @@ type ProfileSummaryProps = {
   winRate: string;
   streak: string;
   bio: string;
+  onChangeAvatar?: () => void;
+  changingAvatar?: boolean;
 };
 
-export function ProfileSummary({ displayName, identifier, avatarUrl, elo, rankLabel, winRate, streak, bio }: ProfileSummaryProps) {
+export function ProfileSummary({
+  displayName,
+  identifier,
+  avatarUrl,
+  elo,
+  rankLabel,
+  winRate,
+  streak,
+  bio,
+  onChangeAvatar,
+  changingAvatar,
+}: ProfileSummaryProps) {
   const identifierLabel = identifier ? (identifier.includes("@") ? "Correo de acceso" : "Usuario de acceso") : "Cuenta";
 
   return (
     <View style={styles.container}>
-      <Image source={{ uri: avatarUrl }} style={styles.avatar} />
+      <View style={styles.avatarWrap}>
+        <Image source={{ uri: avatarUrl }} style={styles.avatar} />
+        {onChangeAvatar ? (
+          <Pressable style={styles.avatarEditButton} onPress={onChangeAvatar} disabled={changingAvatar}>
+            {changingAvatar ? (
+              <ActivityIndicator color={colors.background} size="small" />
+            ) : (
+              <Text style={styles.avatarEditText}>Cambiar foto</Text>
+            )}
+          </Pressable>
+        ) : null}
+      </View>
       <View style={styles.textBlock}>
         <Text style={styles.name}>{displayName}</Text>
         {identifier ? (
@@ -58,11 +82,29 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     borderWidth: 1,
   },
+  avatarWrap: {
+    alignItems: "center",
+    gap: spacing.xs,
+  },
   avatar: {
     width: 88,
     height: 88,
     borderRadius: 999,
-    alignSelf: "center",
+  },
+  avatarEditButton: {
+    backgroundColor: colors.surfaceSoft,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.pill,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6,
+    minWidth: 96,
+    alignItems: "center",
+  },
+  avatarEditText: {
+    color: colors.primaryDark,
+    fontWeight: "800",
+    fontSize: 12,
   },
   textBlock: {
     gap: 6,

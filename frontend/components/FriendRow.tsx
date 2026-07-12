@@ -1,27 +1,23 @@
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
-import { colors, radii, spacing } from "../theme";
+import { colors, spacing } from "../theme";
 
 type FriendRowProps = {
-  name: string;
+  displayName: string;
   avatarUrl: string;
-  sportFocus: string;
-  status: string;
-  selected: boolean;
-  onToggle: () => void;
+  elo: number;
+  onRemove: () => void;
 };
 
-export function FriendRow({ name, avatarUrl, sportFocus, status, selected, onToggle }: FriendRowProps) {
+export function FriendRow({ displayName, avatarUrl, elo, onRemove }: FriendRowProps) {
   return (
     <View style={styles.row}>
       <Image source={{ uri: avatarUrl }} style={styles.avatar} />
       <View style={styles.details}>
-        <Text style={styles.name}>{name}</Text>
-        <Text style={styles.meta}>{sportFocus} · {status}</Text>
+        <Text style={styles.name}>{displayName}</Text>
+        <Text style={styles.meta}>Elo {elo}</Text>
       </View>
-      <Pressable onPress={onToggle} style={[styles.button, selected ? styles.buttonSelected : undefined]}>
-        <Text style={[styles.buttonText, selected ? styles.buttonTextSelected : undefined]}>
-          {selected ? "Remove" : "Add"}
-        </Text>
+      <Pressable onPress={onRemove} style={styles.button}>
+        <Text style={styles.buttonText}>Eliminar</Text>
       </Pressable>
     </View>
   );
@@ -55,19 +51,13 @@ const styles = StyleSheet.create({
   button: {
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: colors.primary,
+    borderColor: colors.danger,
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
-  buttonSelected: {
-    backgroundColor: colors.primary,
-  },
   buttonText: {
-    color: colors.primaryDark,
+    color: colors.danger,
     fontWeight: "800",
     fontSize: 13,
-  },
-  buttonTextSelected: {
-    color: colors.surface,
   },
 });

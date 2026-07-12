@@ -1,11 +1,19 @@
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { router } from "expo-router";
+import * as ImagePicker from "expo-image-picker";
+import { AvatarCropModal } from "../../components/AvatarCropModal";
 import { useAuth } from "../../components/AuthContext";
 import { ProfileSummary } from "../../components/ProfileSummary";
 import { SectionCard } from "../../components/SectionCard";
 import { colors, radii, spacing } from "../../theme";
 import { globalRanking, mockProfile } from "../../data";
+
+type PickedImage = {
+  uri: string;
+  width: number;
+  height: number;
+};
 
 export default function ProfileScreen() {
   const { account, logout, updateAccount } = useAuth();
@@ -14,6 +22,10 @@ export default function ProfileScreen() {
   const [bio, setBio] = useState(profile.bio);
   const [elo, setElo] = useState(String(profile.elo));
   const [saving, setSaving] = useState(false);
+  const [changingAvatar, setChangingAvatar] = useState(false);
+  const [avatarError, setAvatarError] = useState<string | null>(null);
+  const [pickedImage, setPickedImage] = useState<PickedImage | null>(null);
+  const [cropModalVisible, setCropModalVisible] = useState(false);
 
   useEffect(() => {
     setDisplayName(profile.displayName);
@@ -38,6 +50,68 @@ export default function ProfileScreen() {
     }
   }
 
+  async function handleChangeAvatar() {
+    if (!account) return;
+    setAvatarError(null);
+
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      setAvatarError("Se necesita permiso para acceder a tus fotos.");
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      quality: 1,
+    });
+
+    if (result.canceled || !result.assets?.[0]) {
+      return;
+    }
+
+    const asset = result.assets[0];
+    let { width, height } = asset;
+    if (!width || !height) {
+      try {
+        const size = await new Promise<{ width: number; height: number }>((resolve, reject) => {
+          Image.getSize(asset.uri, (w, h) => resolve({ width: w, height: h }), reject);
+        });
+        width = size.width;
+        height = size.height;
+      } catch {
+        setAvatarError("No se pudo leer la imagen seleccionada.");
+        return;
+      }
+    }
+
+    setPickedImage({ uri: asset.uri, width, height });
+    setCropModalVisible(true);
+  }
+
+  async function handleConfirmAvatarCrop(dataUri: string) {
+    if (!account) return;
+    setChangingAvatar(true);
+    try {
+      await updateAccount({
+        profile: {
+          ...profile,
+          avatarUrl: dataUri,
+        },
+      });
+      setCropModalVisible(false);
+      setPickedImage(null);
+    } catch (err) {
+      setAvatarError(err instanceof Error ? err.message : "No se pudo actualizar la foto de perfil.");
+    } finally {
+      setChangingAvatar(false);
+    }
+  }
+
+  function handleCancelAvatarCrop() {
+    setCropModalVisible(false);
+    setPickedImage(null);
+  }
+
   async function handleLogout() {
     await logout();
     router.replace("/(auth)");
@@ -46,7 +120,22 @@ export default function ProfileScreen() {
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <Text style={styles.pageLabel}>Profile</Text>
-      <ProfileSummary {...profile} identifier={account?.identifier} />
+      <ProfileSummary
+        {...profile}
+        identifier={account?.identifier}
+        onChangeAvatar={account ? handleChangeAvatar : undefined}
+        changingAvatar={changingAvatar}
+      />
+      {avatarError ? <Text style={styles.avatarErrorText}>{avatarError}</Text> : null}
+
+      <AvatarCropModal
+        visible={cropModalVisible}
+        imageUri={pickedImage?.uri ?? null}
+        imageWidth={pickedImage?.width ?? 0}
+        imageHeight={pickedImage?.height ?? 0}
+        onCancel={handleCancelAvatarCrop}
+        onConfirm={handleConfirmAvatarCrop}
+      />
 
       <SectionCard title="Edit account" subtitle="Keep the saved profile data in sync with the current session.">
         <View style={styles.form}>
@@ -84,6 +173,11 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: colors.background,
+  },
+  avatarErrorText: {
+    color: colors.danger,
+    fontSize: 13,
+    textAlign: "center",
   },
   content: {
     padding: spacing.lg,

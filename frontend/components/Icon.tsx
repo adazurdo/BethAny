@@ -6,6 +6,7 @@ const iconMap = {
   home: "home-outline",
   profile: "person-outline",
   social: "people-outline",
+  back: "arrow-back-outline",
 } as const;
 
 type IconName = keyof typeof iconMap;

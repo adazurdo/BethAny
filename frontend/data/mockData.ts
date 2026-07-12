@@ -28,24 +28,6 @@ export type MockProfile = {
   bio: string;
 };
 
-export type PredictionGroup = {
-  id: string;
-  name: string;
-  memberCount: number;
-  ownerName: string;
-  lastActivityLabel: string;
-  score: number;
-};
-
-export type Friend = {
-  id: string;
-  name: string;
-  avatarUrl: string;
-  sportFocus: string;
-  status: string;
-  isSelected: boolean;
-};
-
 export const mockEvents: MockEvent[] = [
   {
     id: "event-1",
@@ -139,36 +121,3 @@ export const mockProfile: MockProfile = {
   bio: "Competitive predictor with a sharp eye for football, tennis, and esports.",
 };
 
-export const predictionGroups: PredictionGroup[] = [
-  {
-    id: "group-1",
-    name: "Friday Legends",
-    memberCount: 8,
-    ownerName: "Marta",
-    lastActivityLabel: "New picks for tonight",
-    score: 128,
-  },
-  {
-    id: "group-2",
-    name: "LaLiga Crew",
-    memberCount: 6,
-    ownerName: "Alex",
-    lastActivityLabel: "3 friends joined today",
-    score: 112,
-  },
-  {
-    id: "group-3",
-    name: "Rising Stars",
-    memberCount: 5,
-    ownerName: "Javi",
-    lastActivityLabel: "Awaiting weekend picks",
-    score: 97,
-  },
-];
-
-export const mockFriends: Friend[] = [
-  { id: "friend-1", name: "Marta Ruiz", avatarUrl: "https://i.pravatar.cc/150?img=32", sportFocus: "Football", status: "online", isSelected: true },
-  { id: "friend-2", name: "Alex Vega", avatarUrl: "https://i.pravatar.cc/150?img=47", sportFocus: "Basketball", status: "busy", isSelected: true },
-  { id: "friend-3", name: "Nerea Polo", avatarUrl: "https://i.pravatar.cc/150?img=12", sportFocus: "Tennis", status: "online", isSelected: false },
-  { id: "friend-4", name: "Sergio León", avatarUrl: "https://i.pravatar.cc/150?img=15", sportFocus: "Esports", status: "inactive", isSelected: false },
-];

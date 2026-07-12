@@ -17,15 +17,6 @@ export type BetSelection = {
   status?: string;
 };
 
-export type FriendItem = {
-  id: string;
-  name: string;
-  avatarUrl: string;
-  sportFocus: string;
-  status: string;
-  isSelected: boolean;
-};
-
 export type AuthAccount = {
   accountId: string;
   identifier: string;
@@ -34,7 +25,6 @@ export type AuthAccount = {
   lastLoginAt: string;
   profile: AccountProfile;
   bets: BetSelection[];
-  friends: FriendItem[];
 };
 
 export type AuthCredentials = {
@@ -46,7 +36,6 @@ export type AuthCredentials = {
 export type AccountStateUpdate = {
   profile?: AccountProfile;
   bets?: BetSelection[];
-  friends?: FriendItem[];
 };
 
 function resolveApiUrl() {

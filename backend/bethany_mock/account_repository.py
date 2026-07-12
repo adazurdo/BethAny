@@ -4,10 +4,11 @@ import hashlib
 import hmac
 import secrets
 import uuid
+from dataclasses import asdict
 from datetime import datetime, timezone
 
 from .database import dumps, fetch_one, initialize_database, loads, get_connection
-from .models import AccountProfile, BetRecord, FriendshipData, UserAccount, create_default_bets, create_default_friends, create_default_profile
+from .models import AccountProfile, BetRecord, UserAccount, create_default_bets, create_default_profile
 
 
 def _utcnow() -> str:
@@ -39,19 +40,17 @@ def _serialize_account(account: UserAccount) -> None:
         )
         connection.execute(
             """
-            INSERT INTO account_state (account_id, profile_json, bets_json, friends_json, updated_at)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO account_state (account_id, profile_json, bets_json, updated_at)
+            VALUES (?, ?, ?, ?)
             ON CONFLICT(account_id) DO UPDATE SET
                 profile_json = excluded.profile_json,
                 bets_json = excluded.bets_json,
-                friends_json = excluded.friends_json,
                 updated_at = excluded.updated_at
             """,
             (
                 account.id,
-                dumps(account.profile.to_dict()),
+                dumps(asdict(account.profile)),
                 dumps([bet.to_dict() for bet in account.bets]),
-                dumps([friend.to_dict() for friend in account.friends]),
                 _utcnow(),
             ),
         )
@@ -63,14 +62,11 @@ def _row_to_account(row) -> UserAccount:
         state = fetch_one(connection, "SELECT * FROM account_state WHERE account_id = ?", (row["id"],))
     profile = create_default_profile(row["identifier"])
     bets = create_default_bets()
-    friends = create_default_friends()
     if state:
         profile_payload = loads(state["profile_json"])
         bets_payload = loads(state["bets_json"])
-        friends_payload = loads(state["friends_json"])
         profile = AccountProfile(**profile_payload)
         bets = [BetRecord(**bet) for bet in bets_payload]
-        friends = [FriendshipData(**friend) for friend in friends_payload]
     return UserAccount(
         id=row["id"],
         identifier=row["identifier"],
@@ -81,7 +77,6 @@ def _row_to_account(row) -> UserAccount:
         status=row["status"],
         profile=profile,
         bets=bets,
-        friends=friends,
     )
 
 
@@ -123,7 +118,6 @@ def register_account(identifier: str, password: str, display_name: str | None = 
         last_login_at=now,
         profile=create_default_profile(display_name or cleaned_identifier),
         bets=create_default_bets(),
-        friends=create_default_friends(),
     )
 
     with get_connection() as connection:
@@ -159,7 +153,7 @@ def save_account_state(account: UserAccount) -> UserAccount:
     return account
 
 
-def replace_account_state(account_id: str, *, profile: AccountProfile | None = None, bets: list[BetRecord] | None = None, friends: list[FriendshipData] | None = None) -> UserAccount:
+def replace_account_state(account_id: str, *, profile: AccountProfile | None = None, bets: list[BetRecord] | None = None) -> UserAccount:
     account = get_account_by_id(account_id)
     if account is None:
         raise LookupError("account not found")
@@ -167,6 +161,4 @@ def replace_account_state(account_id: str, *, profile: AccountProfile | None = N
         account.profile = profile
     if bets is not None:
         account.bets = bets
-    if friends is not None:
-        account.friends = friends
     return save_account_state(account)
