@@ -3,19 +3,31 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { Icon } from "../../../components/Icon";
 import { SectionCard } from "../../../components/SectionCard";
+import { GroupRanking } from "../../../components/GroupRanking";
+import { useAuth } from "../../../components/AuthContext";
+import { ClosingDatePicker, ClosingDateValue, closingValueToDate, defaultClosingValue } from "../../../components/ClosingDatePicker";
 import { colors, radii, spacing } from "../../../theme";
 import {
   GroupDetail,
   SocialFriend,
+  abortPrediction,
   getGroup,
   inviteGroupMember,
   listFriends,
   proposeCustomPrediction,
+  resolvePrediction,
   voteOnPrediction,
 } from "../../../data/social";
 
+function formatClosesAt(closesAt: string) {
+  const date = new Date(closesAt);
+  if (Number.isNaN(date.getTime())) return closesAt;
+  return date.toLocaleString();
+}
+
 export default function GroupDetailScreen() {
   const router = useRouter();
+  const { account } = useAuth();
   const params = useLocalSearchParams<{ groupId: string }>();
   const groupId = params.groupId;
 
@@ -29,9 +41,12 @@ export default function GroupDetailScreen() {
 
   const [question, setQuestion] = useState("");
   const [options, setOptions] = useState(["", ""]);
+  const [closingDate, setClosingDate] = useState<ClosingDateValue>(() => defaultClosingValue());
   const [predictionError, setPredictionError] = useState<string | null>(null);
   const [submittingPrediction, setSubmittingPrediction] = useState(false);
   const [votingId, setVotingId] = useState<string | null>(null);
+  const [resolvingId, setResolvingId] = useState<string | null>(null);
+  const [resolveOptionByPrediction, setResolveOptionByPrediction] = useState<Record<string, string>>({});
 
   function loadData() {
     if (!groupId) return;
@@ -91,10 +106,15 @@ export default function GroupDetailScreen() {
     setSubmittingPrediction(true);
     setPredictionError(null);
     try {
-      const updated = await proposeCustomPrediction(groupId, question, options);
+      const closesAtDate = closingValueToDate(closingDate);
+      if (Number.isNaN(closesAtDate.getTime()) || closesAtDate.getTime() <= Date.now()) {
+        throw new Error("Elige una fecha y hora de finalizacion futuras.");
+      }
+      const updated = await proposeCustomPrediction(groupId, question, options, closesAtDate.toISOString());
       setGroup(updated);
       setQuestion("");
       setOptions(["", ""]);
+      setClosingDate(defaultClosingValue());
     } catch (err) {
       setPredictionError(err instanceof Error ? err.message : "No se pudo proponer la prediccion.");
     } finally {
@@ -112,6 +132,34 @@ export default function GroupDetailScreen() {
       setPredictionError(err instanceof Error ? err.message : "No se pudo registrar el voto.");
     } finally {
       setVotingId(null);
+    }
+  }
+
+  async function handleResolve(predictionId: string) {
+    if (!groupId) return;
+    const option = resolveOptionByPrediction[predictionId];
+    if (!option) return;
+    setResolvingId(predictionId);
+    try {
+      const updated = await resolvePrediction(groupId, predictionId, option);
+      setGroup(updated);
+    } catch (err) {
+      setPredictionError(err instanceof Error ? err.message : "No se pudo resolver la prediccion.");
+    } finally {
+      setResolvingId(null);
+    }
+  }
+
+  async function handleAbort(predictionId: string) {
+    if (!groupId) return;
+    setResolvingId(predictionId);
+    try {
+      const updated = await abortPrediction(groupId, predictionId);
+      setGroup(updated);
+    } catch (err) {
+      setPredictionError(err instanceof Error ? err.message : "No se pudo abortar la prediccion.");
+    } finally {
+      setResolvingId(null);
     }
   }
 
@@ -149,6 +197,10 @@ export default function GroupDetailScreen() {
         ))}
       </SectionCard>
 
+      <SectionCard title="Ranking" subtitle="Miembros ordenados por predicciones acertadas">
+        <GroupRanking ranking={group.ranking} />
+      </SectionCard>
+
       <SectionCard title="Invitar amigos" subtitle="Solo puedes invitar a cuentas que ya son tus amigos; deben aceptar para unirse">
         {inviteError ? <Text style={styles.errorText}>{inviteError}</Text> : null}
         {group.pendingInvites.length > 0 ? (
@@ -182,35 +234,83 @@ export default function GroupDetailScreen() {
         )}
       </SectionCard>
 
-      <SectionCard title="Predicciones personalizadas" subtitle="Vota por una opcion; puedes cambiar tu voto">
+      <SectionCard title="Predicciones personalizadas" subtitle="Vota por una opcion mientras este abierta; el autor puede resolverla o abortarla">
         {group.predictions.length > 0 ? (
-          group.predictions.map((prediction) => (
-            <View key={prediction.id} style={styles.predictionCard}>
-              <Text style={styles.predictionQuestion}>{prediction.question}</Text>
-              <View style={styles.predictionOptionsList}>
-                {prediction.options.map((option) => {
-                  const isMine = prediction.myVote === option;
-                  const count = prediction.votes[option] ?? 0;
-                  return (
+          group.predictions.map((prediction) => {
+            const isAuthor = account?.accountId === prediction.createdByAccountId;
+            const isOpen = prediction.status === "open";
+            const statusLabel =
+              prediction.status === "resolved"
+                ? `Resuelta: ${prediction.resolvedOption}`
+                : prediction.status === "aborted"
+                  ? "Abortada"
+                  : `Cierra: ${formatClosesAt(prediction.closesAt)}`;
+            return (
+              <View key={prediction.id} style={styles.predictionCard}>
+                <Text style={styles.predictionQuestion}>{prediction.question}</Text>
+                <Text style={styles.predictionStatus}>{statusLabel}</Text>
+                <View style={styles.predictionOptionsList}>
+                  {prediction.options.map((option) => {
+                    const isMine = prediction.myVote === option;
+                    const count = prediction.votes[option] ?? 0;
+                    return (
+                      <Pressable
+                        key={option}
+                        style={[styles.voteOption, isMine ? styles.voteOptionSelected : undefined]}
+                        onPress={() => handleVote(prediction.id, option)}
+                        disabled={!isOpen || votingId === prediction.id}
+                      >
+                        <Text style={[styles.voteOptionText, isMine ? styles.voteOptionTextSelected : undefined]}>
+                          {option}
+                        </Text>
+                        <Text style={[styles.voteOptionCount, isMine ? styles.voteOptionTextSelected : undefined]}>
+                          {count}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+                <Text style={styles.totalVotes}>{prediction.totalVotes} {prediction.totalVotes === 1 ? "voto" : "votos"}</Text>
+
+                {isAuthor && isOpen ? (
+                  <View style={styles.resolveRow}>
+                    {prediction.options.map((option) => {
+                      const selected = resolveOptionByPrediction[prediction.id] === option;
+                      return (
+                        <Pressable
+                          key={option}
+                          style={[styles.resolveOption, selected ? styles.resolveOptionSelected : undefined]}
+                          onPress={() =>
+                            setResolveOptionByPrediction((current) => ({ ...current, [prediction.id]: option }))
+                          }
+                        >
+                          <Text
+                            style={[styles.resolveOptionText, selected ? styles.resolveOptionTextSelected : undefined]}
+                          >
+                            {option}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
                     <Pressable
-                      key={option}
-                      style={[styles.voteOption, isMine ? styles.voteOptionSelected : undefined]}
-                      onPress={() => handleVote(prediction.id, option)}
-                      disabled={votingId === prediction.id}
+                      style={styles.resolveButton}
+                      onPress={() => handleResolve(prediction.id)}
+                      disabled={resolvingId === prediction.id || !resolveOptionByPrediction[prediction.id]}
                     >
-                      <Text style={[styles.voteOptionText, isMine ? styles.voteOptionTextSelected : undefined]}>
-                        {option}
-                      </Text>
-                      <Text style={[styles.voteOptionCount, isMine ? styles.voteOptionTextSelected : undefined]}>
-                        {count}
-                      </Text>
+                      <Text style={styles.resolveButtonText}>Resolver</Text>
                     </Pressable>
-                  );
-                })}
+                    <Pressable
+                      style={styles.abortButton}
+                      onPress={() => handleAbort(prediction.id)}
+                      disabled={resolvingId === prediction.id}
+                    >
+                      <Text style={styles.abortButtonText}>Abortar</Text>
+                    </Pressable>
+                  </View>
+                ) : null}
               </View>
-              <Text style={styles.totalVotes}>{prediction.totalVotes} {prediction.totalVotes === 1 ? "voto" : "votos"}</Text>
-            </View>
-          ))
+            );
+          })
         ) : (
           <Text style={styles.emptyText}>Aun no hay predicciones personalizadas en este grupo.</Text>
         )}
@@ -242,6 +342,8 @@ export default function GroupDetailScreen() {
           <Pressable onPress={addOptionField} style={styles.addOptionButton}>
             <Text style={styles.addOptionText}>+ Añadir opcion</Text>
           </Pressable>
+          <Text style={styles.fieldLabel}>Fecha y hora de finalizacion</Text>
+          <ClosingDatePicker value={closingDate} onChange={setClosingDate} />
           {predictionError ? <Text style={styles.errorText}>{predictionError}</Text> : null}
           <Pressable style={styles.submitButton} onPress={handleProposePrediction} disabled={submittingPrediction}>
             <Text style={styles.submitButtonText}>{submittingPrediction ? "Proponiendo..." : "Proponer prediccion"}</Text>
@@ -348,6 +450,11 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontWeight: "800",
   },
+  predictionStatus: {
+    color: colors.muted,
+    fontSize: 12,
+    fontWeight: "700",
+  },
   predictionOptionsList: {
     gap: 6,
   },
@@ -378,6 +485,55 @@ const styles = StyleSheet.create({
   },
   totalVotes: {
     color: colors.muted,
+    fontSize: 12,
+  },
+  resolveRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: spacing.xs,
+    marginTop: spacing.xs,
+  },
+  resolveOption: {
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+  },
+  resolveOptionSelected: {
+    backgroundColor: colors.accent,
+    borderColor: colors.accent,
+  },
+  resolveOptionText: {
+    color: colors.text,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  resolveOptionTextSelected: {
+    color: colors.background,
+  },
+  resolveButton: {
+    backgroundColor: colors.primary,
+    borderRadius: radii.pill,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6,
+  },
+  resolveButtonText: {
+    color: colors.background,
+    fontWeight: "800",
+    fontSize: 12,
+  },
+  abortButton: {
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.danger,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6,
+  },
+  abortButtonText: {
+    color: colors.danger,
+    fontWeight: "800",
     fontSize: 12,
   },
   predictionForm: {
@@ -414,6 +570,12 @@ const styles = StyleSheet.create({
   addOptionText: {
     color: colors.accent,
     fontWeight: "700",
+  },
+  fieldLabel: {
+    color: colors.muted,
+    fontSize: 12,
+    fontWeight: "700",
+    marginTop: spacing.xs,
   },
   submitButton: {
     backgroundColor: colors.primary,

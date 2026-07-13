@@ -115,6 +115,10 @@ def initialize_database() -> None:
                 question TEXT NOT NULL,
                 options_json TEXT NOT NULL,
                 created_at TEXT NOT NULL,
+                closes_at TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'open',
+                resolved_option TEXT,
+                resolved_at TEXT,
                 FOREIGN KEY(group_id) REFERENCES prediction_groups(id) ON DELETE CASCADE,
                 FOREIGN KEY(created_by_account_id) REFERENCES accounts(id) ON DELETE CASCADE
             )

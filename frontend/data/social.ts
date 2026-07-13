@@ -51,15 +51,27 @@ export type IncomingGroupInvite = {
   createdAt: string;
 };
 
+export type PredictionStatus = "open" | "resolved" | "aborted";
+
 export type CustomPrediction = {
   id: string;
   question: string;
   options: string[];
   createdByAccountId: string;
   createdAt: string;
+  closesAt: string;
+  status: PredictionStatus;
+  resolvedOption: string | null;
+  resolvedAt: string | null;
   votes: Record<string, number>;
   totalVotes: number;
   myVote: string | null;
+};
+
+export type GroupRankingEntry = {
+  accountId: string;
+  displayName: string;
+  correctCount: number;
 };
 
 export type GroupDetail = {
@@ -68,6 +80,7 @@ export type GroupDetail = {
   ownerAccountId: string;
   createdAt: string;
   members: GroupMember[];
+  ranking: GroupRankingEntry[];
   pendingInvites: PendingGroupInvite[];
   predictions: CustomPrediction[];
 };
@@ -139,10 +152,10 @@ export async function rejectGroupInvite(inviteId: string) {
   });
 }
 
-export async function proposeCustomPrediction(groupId: string, question: string, options: string[]) {
+export async function proposeCustomPrediction(groupId: string, question: string, options: string[], closesAt: string) {
   return requestJson<GroupDetail>(`/social/groups/${encodeURIComponent(groupId)}/predictions`, {
     method: "POST",
-    body: JSON.stringify({ question, options }),
+    body: JSON.stringify({ question, options, closesAt }),
   });
 }
 
@@ -152,6 +165,25 @@ export async function voteOnPrediction(groupId: string, predictionId: string, op
     {
       method: "POST",
       body: JSON.stringify({ option }),
+    },
+  );
+}
+
+export async function resolvePrediction(groupId: string, predictionId: string, option: string) {
+  return requestJson<GroupDetail>(
+    `/social/groups/${encodeURIComponent(groupId)}/predictions/${encodeURIComponent(predictionId)}/resolve`,
+    {
+      method: "POST",
+      body: JSON.stringify({ option }),
+    },
+  );
+}
+
+export async function abortPrediction(groupId: string, predictionId: string) {
+  return requestJson<GroupDetail>(
+    `/social/groups/${encodeURIComponent(groupId)}/predictions/${encodeURIComponent(predictionId)}/abort`,
+    {
+      method: "POST",
     },
   );
 }

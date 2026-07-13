@@ -24,6 +24,7 @@ from .mock_dataset_service import sync_competition
 from .models import AccountProfile, BetRecord, SessionState
 from .social_repository import (
     ConflictError,
+    abort_prediction,
     add_prediction,
     cast_vote,
     create_group,
@@ -34,6 +35,7 @@ from .social_repository import (
     list_groups_for_account,
     list_incoming_group_invites,
     remove_friend,
+    resolve_prediction,
     respond_friend_request,
     respond_group_invite,
     send_friend_request,
@@ -336,6 +338,7 @@ class BethanyRequestHandler(BaseHTTPRequestHandler):
                     account_id,
                     str(payload.get("question", "")),
                     [str(option) for option in options] if isinstance(options, list) else [],
+                    str(payload.get("closesAt", "")),
                 )
             except ValueError as exc:
                 _json_response(self, HTTPStatus.BAD_REQUEST, {"error": str(exc)})
@@ -364,6 +367,42 @@ class BethanyRequestHandler(BaseHTTPRequestHandler):
                 return
             except PermissionError as exc:
                 _json_response(self, HTTPStatus.FORBIDDEN, {"error": str(exc)})
+                return
+            except ConflictError as exc:
+                _json_response(self, HTTPStatus.CONFLICT, {"error": str(exc)})
+                return
+            except LookupError as exc:
+                _json_response(self, HTTPStatus.NOT_FOUND, {"error": str(exc)})
+                return
+            group = get_group(group_id)
+            _json_response(self, HTTPStatus.OK, serialize_group_detail(group, account_id))
+            return
+
+        if (
+            segments[:2] == ["social", "groups"]
+            and len(segments) == 6
+            and segments[3] == "predictions"
+            and segments[5] in ("resolve", "abort")
+        ):
+            account_id = self._require_session()
+            if account_id is None:
+                return
+            group_id = segments[2]
+            prediction_id = segments[4]
+            payload = _read_json(self)
+            try:
+                if segments[5] == "resolve":
+                    resolve_prediction(group_id, prediction_id, account_id, str(payload.get("option", "")))
+                else:
+                    abort_prediction(group_id, prediction_id, account_id)
+            except ValueError as exc:
+                _json_response(self, HTTPStatus.BAD_REQUEST, {"error": str(exc)})
+                return
+            except PermissionError as exc:
+                _json_response(self, HTTPStatus.FORBIDDEN, {"error": str(exc)})
+                return
+            except ConflictError as exc:
+                _json_response(self, HTTPStatus.CONFLICT, {"error": str(exc)})
                 return
             except LookupError as exc:
                 _json_response(self, HTTPStatus.NOT_FOUND, {"error": str(exc)})

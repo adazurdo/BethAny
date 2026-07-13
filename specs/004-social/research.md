@@ -51,3 +51,38 @@
 - **Rationale**: FR-027 requires the bottom tab bar to stay visible while viewing a group, so the user can jump straight to Home/Profile/Social without first backing out. A screen registered directly on the root `Stack` (like `ranking/index` and `matches/index`) replaces the whole screen and drops the tab bar; nesting the route inside the `Tabs` navigator keeps the tab bar mounted for that screen while still not adding a fourth visible tab icon.
 - **Alternatives considered**:
   - Keep the top-level stack route and add a custom bottom nav bar duplicated inside it: rejected as duplicated UI/logic that would drift from the real tab bar over time.
+
+## Decision 8: Prediction lifecycle lives on `custom_predictions` itself, not a separate table (added 2026-07-13)
+
+- **Decision**: Add `closes_at`, `status` (`open`/`resolved`/`aborted`), `resolved_option`, and `resolved_at` as columns directly on `custom_predictions`, instead of a separate `prediction_resolutions` table.
+- **Rationale**: A prediction has exactly one lifecycle state at a time; this is the same one-row-per-entity, status-column pattern already used for `friend_requests` and `group_invites` (Decisions 1 and 5). A separate table would only ever hold a 1:1 row per prediction, which is unnecessary indirection.
+- **Alternatives considered**:
+  - A separate `prediction_resolutions` table keyed by `prediction_id`: rejected as an unjustified extra join for data that is always 1:1 and always read together with the prediction itself.
+
+## Decision 9: Resolving and finalizing early are the same backend operation (added 2026-07-13)
+
+- **Decision**: `POST /social/groups/{groupId}/predictions/{predictionId}/resolve` has no server-side check against `closes_at`. The author can call it any time the prediction is `open` — calling it after `closes_at` is "normal" resolution, calling it before is "finalizing early". Both are the same state transition (`open -> resolved`, `resolved_option` set).
+- **Rationale**: The spec frames "decide the correct option when time runs out" and "finalize before time" as two user-facing scenarios (User Story 6), but they have no behavioral difference for the backend — in both cases only the author can act, the prediction must be `open`, and the effect is identical. Adding a `closes_at` gate to the resolve endpoint would only block the legitimate early-finalization case and add complexity with no validation benefit, since votes are already blocked past `closes_at` by a separate check (Decision 10).
+- **Alternatives considered**:
+  - Two separate endpoints/states for "resolved after deadline" vs. "resolved early": rejected — no requirement reads or displays that distinction, so it would be state with no consumer.
+
+## Decision 10: Voting closes automatically at `closes_at`, independent of resolution (added 2026-07-13)
+
+- **Decision**: `POST /social/groups/{groupId}/predictions/{predictionId}/votes` rejects (`409`) once `closes_at` has passed, even if the author has not yet called resolve/abort. This is a plain timestamp comparison at request time — no scheduled job flips `status` automatically.
+- **Rationale**: FR-029 requires votes to stop once the closing date is reached, but the author might not resolve immediately. Checking `closes_at` at vote time (in addition to checking `status != 'open'`) satisfies this without introducing a background scheduler, consistent with the Simplicity principle and the project's stdlib-only backend.
+- **Alternatives considered**:
+  - A background job that flips `status` to a new `closed` state exactly at `closes_at`: rejected as unnecessary infrastructure (schedulers, cron) for a local-first mock-stage prototype; a request-time check achieves the same user-visible guarantee.
+
+## Decision 11: Ranking is computed on read, not stored (added 2026-07-13)
+
+- **Decision**: The per-group ranking (`GET /social/groups/{groupId}` → `ranking`) is computed on every request by joining `group_memberships`, `custom_predictions` where `status = 'resolved'`, and `prediction_votes` where `option = resolved_option`, grouped by account. No `GroupRanking`/score table is introduced.
+- **Rationale**: The ranking is fully derivable from data already being written for other reasons (votes, resolutions); storing a separate running score would require updating it on every resolve action and risks drifting from the source rows it's derived from. The mock-stage data volume (a handful of members and predictions per group) makes computing it on read trivially cheap.
+- **Alternatives considered**:
+  - A `group_member_score` table incremented on each resolve: rejected as premature denormalization — nothing in the spec requires this to scale beyond the current mock dataset sizes.
+
+## Decision 12: No schema migration mechanism — local dev DB reset is expected (added 2026-07-13)
+
+- **Decision**: The new `custom_predictions` columns are added directly to the `CREATE TABLE IF NOT EXISTS` statement in `database.py`. Since SQLite's `IF NOT EXISTS` does not alter an already-created table, any existing local `backend/data/bethany.sqlite3` from before this change must be deleted so it gets recreated with the new columns.
+- **Rationale**: This repo has no migration framework (confirmed: no `ALTER TABLE` usage anywhere in `backend/`), consistent with the mock/local-first stage where the SQLite file is disposable, seed-generated local state, not data anyone needs to preserve across schema changes.
+- **Alternatives considered**:
+  - Write an `ALTER TABLE custom_predictions ADD COLUMN ...` migration step in `initialize_database()`: rejected as the first migration-style code in a codebase that has deliberately avoided that complexity so far; revisit if/when real user data needs to survive schema changes.

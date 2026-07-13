@@ -16,6 +16,16 @@ def _utcnow() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _parse_timestamp(value: str) -> datetime:
+    try:
+        parsed = datetime.fromisoformat(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("invalid timestamp") from exc
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed
+
+
 def _new_id(prefix: str) -> str:
     return f"{prefix}_{uuid.uuid4().hex[:12]}"
 
@@ -410,30 +420,7 @@ def respond_group_invite(account_id: str, invite_id: str, accept: bool) -> Group
 # --- Custom predictions and votes -------------------------------------------------------
 
 
-def list_predictions(group_id: str) -> list[CustomPrediction]:
-    with get_connection() as connection:
-        rows = connection.execute(
-            "SELECT * FROM custom_predictions WHERE group_id = ? ORDER BY created_at",
-            (group_id,),
-        ).fetchall()
-    return [
-        CustomPrediction(
-            id=row["id"],
-            group_id=row["group_id"],
-            created_by_account_id=row["created_by_account_id"],
-            question=row["question"],
-            options=loads(row["options_json"]),
-            created_at=row["created_at"],
-        )
-        for row in rows
-    ]
-
-
-def get_prediction(prediction_id: str) -> CustomPrediction | None:
-    with get_connection() as connection:
-        row = fetch_one(connection, "SELECT * FROM custom_predictions WHERE id = ?", (prediction_id,))
-    if row is None:
-        return None
+def _row_to_prediction(row) -> CustomPrediction:
     return CustomPrediction(
         id=row["id"],
         group_id=row["group_id"],
@@ -441,10 +428,31 @@ def get_prediction(prediction_id: str) -> CustomPrediction | None:
         question=row["question"],
         options=loads(row["options_json"]),
         created_at=row["created_at"],
+        closes_at=row["closes_at"],
+        status=row["status"],
+        resolved_option=row["resolved_option"],
+        resolved_at=row["resolved_at"],
     )
 
 
-def add_prediction(group_id: str, requester_account_id: str, question: str, options: list[str]) -> CustomPrediction:
+def list_predictions(group_id: str) -> list[CustomPrediction]:
+    with get_connection() as connection:
+        rows = connection.execute(
+            "SELECT * FROM custom_predictions WHERE group_id = ? ORDER BY created_at",
+            (group_id,),
+        ).fetchall()
+    return [_row_to_prediction(row) for row in rows]
+
+
+def get_prediction(prediction_id: str) -> CustomPrediction | None:
+    with get_connection() as connection:
+        row = fetch_one(connection, "SELECT * FROM custom_predictions WHERE id = ?", (prediction_id,))
+    return _row_to_prediction(row) if row else None
+
+
+def add_prediction(
+    group_id: str, requester_account_id: str, question: str, options: list[str], closes_at: str
+) -> CustomPrediction:
     group = get_group(group_id)
     if group is None:
         raise LookupError("group not found")
@@ -456,19 +464,27 @@ def add_prediction(group_id: str, requester_account_id: str, question: str, opti
     if not cleaned_question or len(cleaned_options) < 2:
         raise ValueError("question and at least two options are required")
 
+    now = _utcnow()
+    closes_at_dt = _parse_timestamp(closes_at)
+    if closes_at_dt <= _parse_timestamp(now):
+        raise ValueError("closesAt must be a future date")
+
     prediction = CustomPrediction(
         id=_new_id("pred"),
         group_id=group_id,
         created_by_account_id=requester_account_id,
         question=cleaned_question,
         options=cleaned_options,
-        created_at=_utcnow(),
+        created_at=now,
+        closes_at=closes_at_dt.isoformat(),
+        status="open",
     )
     with get_connection() as connection:
         connection.execute(
             """
-            INSERT INTO custom_predictions (id, group_id, created_by_account_id, question, options_json, created_at)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO custom_predictions
+                (id, group_id, created_by_account_id, question, options_json, created_at, closes_at, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 'open')
             """,
             (
                 prediction.id,
@@ -477,10 +493,51 @@ def add_prediction(group_id: str, requester_account_id: str, question: str, opti
                 prediction.question,
                 dumps(prediction.options),
                 prediction.created_at,
+                prediction.closes_at,
             ),
         )
         connection.commit()
     return prediction
+
+
+def resolve_prediction(group_id: str, prediction_id: str, requester_account_id: str, option: str) -> CustomPrediction:
+    prediction = get_prediction(prediction_id)
+    if prediction is None or prediction.group_id != group_id:
+        raise LookupError("prediction not found")
+    if prediction.created_by_account_id != requester_account_id:
+        raise PermissionError("only the prediction's author can resolve it")
+    if prediction.status != "open":
+        raise ConflictError("this prediction is no longer open")
+    if option not in prediction.options:
+        raise ValueError("option is not part of this prediction")
+
+    now = _utcnow()
+    with get_connection() as connection:
+        connection.execute(
+            "UPDATE custom_predictions SET status = 'resolved', resolved_option = ?, resolved_at = ? WHERE id = ?",
+            (option, now, prediction.id),
+        )
+        connection.commit()
+    return get_prediction(prediction_id)
+
+
+def abort_prediction(group_id: str, prediction_id: str, requester_account_id: str) -> CustomPrediction:
+    prediction = get_prediction(prediction_id)
+    if prediction is None or prediction.group_id != group_id:
+        raise LookupError("prediction not found")
+    if prediction.created_by_account_id != requester_account_id:
+        raise PermissionError("only the prediction's author can abort it")
+    if prediction.status != "open":
+        raise ConflictError("this prediction is no longer open")
+
+    now = _utcnow()
+    with get_connection() as connection:
+        connection.execute(
+            "UPDATE custom_predictions SET status = 'aborted', resolved_at = ? WHERE id = ?",
+            (now, prediction.id),
+        )
+        connection.commit()
+    return get_prediction(prediction_id)
 
 
 def list_votes(prediction_id: str) -> list[PredictionVote]:
@@ -509,6 +566,9 @@ def cast_vote(group_id: str, prediction_id: str, requester_account_id: str, opti
         raise ValueError("option is not part of this prediction")
 
     now = _utcnow()
+    if prediction.status != "open" or _parse_timestamp(now) >= _parse_timestamp(prediction.closes_at):
+        raise ConflictError("this prediction is no longer open to votes")
+
     with get_connection() as connection:
         connection.execute(
             """
@@ -547,6 +607,7 @@ def serialize_group_detail(group: PredictionGroup, requester_account_id: str) ->
             continue
         pending_invites.append({"id": invite.id, "accountId": invitee.id, "displayName": invitee.profile.display_name})
 
+    correct_counts = {member["accountId"]: 0 for member in members}
     predictions = []
     for prediction in list_predictions(group.id):
         votes = list_votes(prediction.id)
@@ -557,6 +618,12 @@ def serialize_group_detail(group: PredictionGroup, requester_account_id: str) ->
                 tally[vote.option] += 1
             if vote.account_id == requester_account_id:
                 my_vote = vote.option
+            if (
+                prediction.status == "resolved"
+                and vote.option == prediction.resolved_option
+                and vote.account_id in correct_counts
+            ):
+                correct_counts[vote.account_id] += 1
         predictions.append(
             {
                 "id": prediction.id,
@@ -564,11 +631,23 @@ def serialize_group_detail(group: PredictionGroup, requester_account_id: str) ->
                 "options": prediction.options,
                 "createdByAccountId": prediction.created_by_account_id,
                 "createdAt": prediction.created_at,
+                "closesAt": prediction.closes_at,
+                "status": prediction.status,
+                "resolvedOption": prediction.resolved_option,
+                "resolvedAt": prediction.resolved_at,
                 "votes": tally,
                 "totalVotes": len(votes),
                 "myVote": my_vote,
             }
         )
+
+    ranking = sorted(
+        (
+            {"accountId": member["accountId"], "displayName": member["displayName"], "correctCount": correct_counts[member["accountId"]]}
+            for member in members
+        ),
+        key=lambda entry: (-entry["correctCount"], entry["displayName"].lower()),
+    )
 
     return {
         "id": group.id,
@@ -576,6 +655,7 @@ def serialize_group_detail(group: PredictionGroup, requester_account_id: str) ->
         "ownerAccountId": group.owner_account_id,
         "createdAt": group.created_at,
         "members": members,
+        "ranking": ranking,
         "pendingInvites": pending_invites,
         "predictions": predictions,
     }

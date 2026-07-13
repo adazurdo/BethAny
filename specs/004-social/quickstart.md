@@ -2,7 +2,7 @@
 
 ## Goal
 
-Validate that a signed-in user can send/accept/reject friend requests, sort friends, create a prediction group with invite-based membership, propose custom predictions, and vote on them.
+Validate that a signed-in user can send/accept/reject friend requests, sort friends, create a prediction group with invite-based membership, propose custom predictions with a closing date, vote on them, resolve or abort them as the author, and see the group's ranking of members by correct predictions.
 
 ## Prerequisites
 
@@ -75,15 +75,45 @@ Open a group from the Social tab, then use the back button to return.
 
 ### 11. Propose a custom prediction and vote
 
-Inside the group, propose a custom prediction with a question and at least two options, then have members vote on one of the options.
+Inside the group, propose a custom prediction with a question, at least two options, and a closing date, then have members vote on one of the options.
 
-**Expected result**: The prediction and its live vote tally are visible from any member's view of the group; each member's own vote is indicated; voting again for the same member changes their vote instead of adding a second one.
+**Expected result**: The prediction (with its closing date and `open` status) and its live vote tally are visible from any member's view of the group; each member's own vote is indicated; voting again for the same member changes their vote instead of adding a second one.
 
 ### 12. Reject invalid group/voting actions
 
-Try creating a group with an empty name, inviting a non-friend account, inviting the same friend twice, proposing a prediction with a single option, and voting for an option that doesn't belong to the prediction, or voting while not a group member.
+Try creating a group with an empty name, inviting a non-friend account, inviting the same friend twice, proposing a prediction with a single option or no closing date, and voting for an option that doesn't belong to the prediction, or voting while not a group member.
 
 **Expected result**: Each attempt is rejected with a clear message and no partial state is created.
+
+### 13. Finalize a prediction early
+
+As the author of an open prediction with votes from more than one member, resolve it before its closing date, marking one option as correct.
+
+**Expected result**: The prediction immediately shows `status: resolved` and the chosen option as `resolvedOption`, before its closing date has passed; further votes on it are rejected.
+
+### 14. Resolve a prediction after its closing date
+
+As the author of a different open prediction, wait until (or simulate) its closing date passing, then resolve it by marking the correct option.
+
+**Expected result**: The prediction shows `status: resolved` with the chosen `resolvedOption`; votes were already rejected once the closing date passed, even before resolving.
+
+### 15. Abort a prediction
+
+As the author of a third open prediction, abort it instead of resolving it.
+
+**Expected result**: The prediction shows `status: aborted` with no `resolvedOption`; no member's vote on it counts toward the group ranking.
+
+### 16. Reject invalid resolution actions
+
+Try resolving or aborting a prediction as a non-author member, and try resolving or aborting a prediction that is already `resolved` or `aborted`.
+
+**Expected result**: Each attempt is rejected with a clear message and the prediction's status does not change.
+
+### 17. View the group ranking
+
+Open the group detail screen after at least one prediction has been resolved with votes from multiple members.
+
+**Expected result**: A ranking section lists every current member with their count of correctly guessed (resolved) predictions, ordered from most to fewest correct, with members tied on count ordered alphabetically; members with zero correct predictions are still listed with a count of 0; the aborted prediction from step 15 does not affect anyone's count.
 
 ## Recommended Checks
 
@@ -91,7 +121,13 @@ Try creating a group with an empty name, inviting a non-friend account, inviting
 - Verify removing a friend does not remove a prediction group you already share with them.
 - Verify only current group members can see and propose custom predictions or vote for that group.
 - Verify rejecting a friend request or a group invite leaves no residual pending state.
+- Verify only the prediction's author sees/can use its resolve and abort controls.
+- Verify the ranking updates immediately after a resolve action, for every member's view of the group.
 
 ## Mobile Validation
 
-Since the "Social" tab and the group detail screen are part of the mobile tab bar navigation, validate friend requests (send/accept/reject), sorting, group creation, invites (send/accept/reject), proposing a custom prediction, voting, and the group screen's back button through Expo on a real device or simulator, confirming all controls remain usable at mobile width and the tab bar stays visible inside the group screen.
+Since the "Social" tab and the group detail screen are part of the mobile tab bar navigation, validate friend requests (send/accept/reject), sorting, group creation, invites (send/accept/reject), proposing a custom prediction with a closing date, voting, resolving/aborting a prediction as its author, the group ranking section, and the group screen's back button through Expo on a real device or simulator, confirming all controls remain usable at mobile width and the tab bar stays visible inside the group screen.
+
+## Local Database Reset
+
+The `custom_predictions` table gained new columns (`closes_at`, `status`, `resolved_option`, `resolved_at`) in this update. Since the project has no migration mechanism (see `research.md` Decision 12), delete the existing local `backend/data/bethany.sqlite3` before validating this flow so it gets recreated with the new schema.

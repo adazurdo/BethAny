@@ -8,10 +8,12 @@
 
 **Organization**: Tasks are grouped by user story so each story can be implemented and validated independently.
 
+**Status note (2026-07-13, updated)**: All 41 tasks are implemented. T001–T021, T025–T026, T033–T034 predate this session (verified against the running code). T022–T024, T027–T039 were implemented and verified in this session: schema/model lifecycle fields, closing-date validation, vote cutoff, resolve/abort (backend + UI), ranking computation (backend + `GroupRanking` UI component), and a local DB reset (old file renamed to `bethany.sqlite3.pre-amendment2.bak`, not deleted, since it had local test data). T040 needed no changes — `quickstart.md` copy already matched the implementation. T041's backend flows were verified with an isolated smoke test (throwaway SQLite DB, separate port, `urllib`) covering propose-with-closing-date, past/missing-`closesAt` rejection, vote-after-close rejection (409), non-author resolve rejection (403), resolve/abort, double-resolve rejection (409), and ranking correctness (including that aborted predictions don't count). The actual `frontend/app/(tabs)/groups/[groupId].tsx` UI was **not** exercised in a browser — no headless browser is available in this environment — so a manual pass in Expo web is still recommended before considering this fully done.
+
 ## Format: `[ID] [P?] [Story] Description`
 
 - **[P]**: Can run in parallel when the files and dependencies do not overlap
-- **[Story]**: Which user story the task belongs to, e.g. US1, US2, US3, US4
+- **[Story]**: Which user story the task belongs to, e.g. US1, US2, US3
 - Include exact file paths in descriptions
 
 ---
@@ -20,9 +22,9 @@
 
 **Purpose**: Create the new module skeletons the Social feature will fill in
 
-- [ ] T001 [P] Create the social persistence module skeleton in `backend/bethany_mock/social_repository.py`
-- [ ] T002 [P] Add `Friend`, `PredictionGroup`, `GroupMembership`, and `CustomPrediction` dataclass skeletons in `backend/bethany_mock/models.py`
-- [ ] T003 [P] Create the frontend social API client skeleton and group detail route scaffolding in `frontend/data/social.ts` and `frontend/app/groups/[groupId].tsx`
+- [x] T001 [P] Create the social persistence module skeleton in `backend/bethany_mock/social_repository.py`
+- [x] T002 [P] Add `FriendRequest`, `PredictionGroup`, `GroupMembership`, `GroupInvite`, `CustomPrediction`, `PredictionVote` dataclasses in `backend/bethany_mock/models.py`
+- [x] T003 [P] Create the frontend social API client and group detail route scaffolding in `frontend/data/social.ts` and `frontend/app/(tabs)/groups/[groupId].tsx`
 
 ---
 
@@ -32,89 +34,157 @@
 
 **⚠️ Critical**: No user story work should start until this phase is complete
 
-- [ ] T004 Add `friendships`, `prediction_groups`, `group_memberships`, and `custom_predictions` tables to the schema in `backend/bethany_mock/database.py`
-- [ ] T005 [P] Implement friend add/remove/list operations that validate against real accounts and resolve display name and elo live from each friend's `AccountProfile` in `backend/bethany_mock/account_repository.py`
-- [ ] T006 [P] Implement group create/list/get, membership add, and custom-prediction create operations in `backend/bethany_mock/social_repository.py`
-- [ ] T007 Wire `POST/DELETE /social/friends` and `POST/GET /social/groups*` onto the existing session-authenticated request handler in `backend/bethany_mock/api.py`
-- [ ] T008 [P] Add typed request helpers (`addFriend`, `removeFriend`, `createGroup`, `listGroups`, `getGroup`, `inviteGroupMember`, `proposeCustomPrediction`) in `frontend/data/social.ts`
-- [ ] T009 [P] Extend friend and account types with `accountId` and live `elo` in `frontend/data/auth.ts`
+- [x] T004 Add `friend_requests`, `prediction_groups`, `group_memberships`, `group_invites`, `custom_predictions`, and `prediction_votes` tables to the schema in `backend/bethany_mock/database.py`
+- [x] T005 [P] Implement friend request send/accept/reject/list/remove operations that validate against real accounts and resolve display name and elo live from each friend's `AccountProfile` in `backend/bethany_mock/social_repository.py`
+- [x] T006 [P] Implement group create/list/get, invite/accept/reject membership, and custom-prediction create/vote operations in `backend/bethany_mock/social_repository.py`
+- [x] T007 Wire all `/social/friends*` and `/social/groups*` routes onto the existing session-authenticated request handler in `backend/bethany_mock/api.py`
+- [x] T008 [P] Add typed request helpers for every `/social/*` endpoint in `frontend/data/social.ts`
+- [x] T009 [P] Add `SocialFriend`, `FriendRequest`, `GroupSummary`, `GroupDetail`, and related types in `frontend/data/social.ts`
 
-**Checkpoint**: The backend can persist and serve friends (with live elo) and prediction groups; the frontend can call every `/social/*` endpoint.
+**Checkpoint**: The backend can persist and serve friends (with live elo), prediction groups, invites, predictions, and votes; the frontend can call every `/social/*` endpoint. ✅ Done.
 
 ---
 
-## Phase 3: User Story 1 - Añadir y eliminar amigos (Priority: P1) 🎯 MVP
+## Phase 3: User Story 1 - Solicitar amistad y aceptar o rechazar solicitudes (Priority: P1) 🎯 MVP
 
-**Goal**: Let a user add a friend by identifier (validated against a real account) and remove an existing friend from the Social tab
+**Goal**: Let a user send a friend request by identifier, and let the recipient accept or reject it before a friendship exists
 
-**Independent Test**: Add a friend by a valid identifier and confirm it appears in the list; remove it and confirm it disappears
+**Independent Test**: Send a friend request, confirm it appears as pending for the recipient, and confirm accepting creates a mutual friendship (or rejecting discards it)
 
 ### Implementation for User Story 1
 
-- [ ] T010 [P] [US1] Build the add-friend input with duplicate/self-add error feedback in `frontend/app/(tabs)/social.tsx`
-- [ ] T011 [P] [US1] Adapt `FriendRow` to real add/remove semantics and display each friend's elo in `frontend/components/FriendRow.tsx`
-- [ ] T012 [US1] Enforce self-add and duplicate-friend rejection for `POST /social/friends` in `backend/bethany_mock/account_repository.py` and `backend/bethany_mock/api.py`
-- [ ] T013 [US1] Wire the remove-friend action to `DELETE /social/friends/{friendAccountId}` in `frontend/app/(tabs)/social.tsx` and `frontend/data/social.ts`
+- [x] T010 [P] [US1] Build the add-friend input with self/duplicate-request error feedback in `frontend/app/(tabs)/social.tsx`
+- [x] T011 [P] [US1] Render incoming and outgoing pending requests with accept/reject actions in `frontend/app/(tabs)/social.tsx` and `frontend/components/FriendRow.tsx`
+- [x] T012 [US1] Enforce self-request and duplicate-request (any direction) rejection for `POST /social/friends` in `backend/bethany_mock/social_repository.py`
+- [x] T013 [US1] Implement `POST /social/friends/requests/{requestId}/accept|reject` in `backend/bethany_mock/social_repository.py` and `backend/bethany_mock/api.py`
 
-**Checkpoint**: User Story 1 should now let a user add and remove friends independently of groups or sorting.
+**Checkpoint**: User Story 1 lets a user send, accept, and reject friend requests independently of groups or sorting. ✅ Done.
 
 ---
 
-## Phase 4: User Story 2 - Crear grupo de predicciones e invitar amigos (Priority: P2)
+## Phase 4: User Story 2 - Eliminar amigos (Priority: P1)
 
-**Goal**: Let a user create a prediction group and invite friends from their friend list into it
+**Goal**: Let a user remove an existing friend from the Social tab
 
-**Independent Test**: Create a group, invite an existing friend, and confirm the friend appears as a group member
+**Independent Test**: Remove an existing friend and confirm it disappears from both accounts' friend lists
 
 ### Implementation for User Story 2
 
-- [ ] T014 [P] [US2] Build the create-group action and form in `frontend/components/CreateGroupModal.tsx`
-- [ ] T015 [P] [US2] Adapt `GroupCard` to real member counts and navigation into group detail in `frontend/components/GroupCard.tsx` and `frontend/app/(tabs)/social.tsx`
-- [ ] T016 [US2] Build the group detail screen with member list and invite-friend action in `frontend/app/groups/[groupId].tsx`
-- [ ] T017 [US2] Enforce friends-only invites and duplicate-membership rejection for `POST /social/groups/{groupId}/members` in `backend/bethany_mock/social_repository.py` and `backend/bethany_mock/api.py`
+- [x] T014 [US2] Wire the remove-friend action to `DELETE /social/friends/{friendAccountId}` in `frontend/app/(tabs)/social.tsx` and `frontend/data/social.ts`
+- [x] T015 [US2] Enforce accepted-friendship-only removal, reflected for both accounts, in `backend/bethany_mock/social_repository.py`
 
-**Checkpoint**: User Stories 1 AND 2 should both work independently.
+**Checkpoint**: User Stories 1 and 2 both work independently. ✅ Done.
 
 ---
 
-## Phase 5: User Story 3 - Proponer predicciones personalizadas en un grupo (Priority: P2)
+## Phase 5: User Story 3 - Crear grupo de predicciones e invitar amigos con aceptacion (Priority: P2)
 
-**Goal**: Let group members propose a custom prediction (question + options) visible to the whole group
+**Goal**: Let a user create a prediction group and invite friends, who must accept before becoming members
 
-**Independent Test**: Propose a custom prediction inside an existing group and confirm it is visible from the group detail view
+**Independent Test**: Create a group, invite an existing friend, confirm the invite is pending for the invitee, and confirm accepting adds them as a member (or rejecting does not)
 
 ### Implementation for User Story 3
 
-- [ ] T018 [P] [US3] Build the custom-prediction proposal form (question + options) in `frontend/app/groups/[groupId].tsx`
-- [ ] T019 [US3] Render the group's custom predictions list for all members in `frontend/app/groups/[groupId].tsx`
-- [ ] T020 [US3] Enforce a non-empty question and a minimum of two valid options for `POST /social/groups/{groupId}/predictions` in `backend/bethany_mock/social_repository.py` and `backend/bethany_mock/api.py`
+- [x] T016 [P] [US3] Build the create-group action and form in `frontend/components/CreateGroupModal.tsx`
+- [x] T017 [P] [US3] Build the group detail screen with member list, pending invites, invite-friend action, and back button in `frontend/app/(tabs)/groups/[groupId].tsx`
+- [x] T018 [US3] Enforce friends-only invites and duplicate-membership/duplicate-invite rejection for `POST /social/groups/{groupId}/members` in `backend/bethany_mock/social_repository.py`
+- [x] T019 [US3] Implement `POST /social/groups/invites/{inviteId}/accept|reject`, creating the `GroupMembership` on accept, in `backend/bethany_mock/social_repository.py` and `backend/bethany_mock/api.py`
 
-**Checkpoint**: User Stories 1, 2, AND 3 should all work independently.
+**Checkpoint**: User Stories 1–3 all work independently. ✅ Done.
 
 ---
 
-## Phase 6: User Story 4 - Ordenar la lista de amigos (Priority: P3)
+## Phase 6: User Story 4 - Proponer predicciones personalizadas en un grupo (Priority: P2)
+
+**Goal**: Let group members propose a custom prediction (question + options + closing date) visible to the whole group
+
+**Independent Test**: Propose a custom prediction with a question, at least two options, and a future closing date inside an existing group, and confirm it (with its closing date and `open` status) is visible from the group detail view
+
+### Implementation for User Story 4
+
+- [x] T020 [US4] Build the custom-prediction proposal form (question + options) in `frontend/app/(tabs)/groups/[groupId].tsx`
+- [x] T021 [US4] Enforce a non-empty question and a minimum of two valid options for `POST /social/groups/{groupId}/predictions` in `backend/bethany_mock/social_repository.py`
+- [x] T022 [US4] Add `closes_at`, `status` (`open`/`resolved`/`aborted`, default `open`), `resolved_option`, and `resolved_at` columns to `custom_predictions` in `backend/bethany_mock/database.py`; add matching fields to `CustomPrediction` in `backend/bethany_mock/models.py` (see `data-model.md` CustomPrediction, `research.md` Decision 8)
+- [x] T023 [US4] Require and validate a future `closesAt` in `add_prediction()`, storing it and defaulting new predictions to `status='open'`, in `backend/bethany_mock/social_repository.py` (`FR-018`, `FR-019`, `FR-028`)
+- [x] T024 [US4] Add a closing-date input to the proposal form, and surface `closesAt`/`status`/`resolvedOption` on each prediction card, in `frontend/app/(tabs)/groups/[groupId].tsx` and `frontend/data/social.ts`
+
+**Checkpoint**: User Stories 1–4 all work independently. ✅ Done.
+
+---
+
+## Phase 7: User Story 5 - Votar en las predicciones de un grupo (Priority: P2)
+
+**Goal**: Let group members vote on a custom prediction's options while it is open, and change their vote
+
+**Independent Test**: Vote on an option of an existing prediction and confirm the tally updates for all members; vote again and confirm the previous vote is replaced, not duplicated
+
+### Implementation for User Story 5
+
+- [x] T025 [US5] Build the vote UI (option buttons, live tally, own-vote highlight) in `frontend/app/(tabs)/groups/[groupId].tsx`
+- [x] T026 [US5] Implement upsert voting (`cast_vote`) enforcing group membership and a valid option for `POST /social/groups/{groupId}/predictions/{predictionId}/votes` in `backend/bethany_mock/social_repository.py`
+- [x] T027 [US5] Reject votes once a prediction's `closes_at` has passed or its `status` is no longer `open` (`FR-029`) in `cast_vote()` in `backend/bethany_mock/social_repository.py`, and surface the resulting `409` in `frontend/app/(tabs)/groups/[groupId].tsx` — depends on T022
+
+**Checkpoint**: User Stories 1–5 all work independently. ✅ Done.
+
+---
+
+## Phase 8: User Story 6 - Resolver o abortar una prediccion personalizada (Priority: P2) 🆕
+
+**Goal**: Let a prediction's author mark the correct option (at or before its closing date) or abort it without a winner, closing it to further votes either way
+
+**Independent Test**: As the author, resolve a prediction with existing votes by marking an option correct, and confirm it closes to voting and records who guessed correctly; separately, abort a different prediction and confirm no member is credited with a correct guess
+
+### Implementation for User Story 6
+
+- [x] T028 [US6] Implement `resolve_prediction(group_id, prediction_id, requester_account_id, option)` — author-only, requires `status == 'open'`, sets `status='resolved'`, `resolved_option`, `resolved_at` — in `backend/bethany_mock/social_repository.py` (`FR-030`, `FR-031`, `FR-033`; see `research.md` Decision 9 for why early finalization uses the same operation) — depends on T022
+- [x] T029 [US6] Implement `abort_prediction(group_id, prediction_id, requester_account_id)` — author-only, requires `status == 'open'`, sets `status='aborted'`, `resolved_at`, no `resolved_option` — in `backend/bethany_mock/social_repository.py` (`FR-032`, `FR-033`) — depends on T022
+- [x] T030 [US6] Wire `POST /social/groups/{groupId}/predictions/{predictionId}/resolve` and `.../abort` onto the session-authenticated handler in `backend/bethany_mock/api.py`
+- [x] T031 [P] [US6] Add `resolvePrediction`/`abortPrediction` request helpers and extend the `CustomPrediction` type with `status`/`resolvedOption`/`resolvedAt` in `frontend/data/social.ts`
+- [x] T032 [US6] Show author-only resolve/abort controls on each open prediction, and a resolved/aborted badge on closed ones, in `frontend/app/(tabs)/groups/[groupId].tsx`
+
+**Checkpoint**: User Stories 1–6 all work independently. ✅ Done.
+
+---
+
+## Phase 9: User Story 7 - Ordenar la lista de amigos (Priority: P3)
 
 **Goal**: Let a user sort their friends list by elo ascending, elo descending, or alphabetically
 
 **Independent Test**: With friends of different elo, switch sort options and confirm the displayed order changes correctly for each, with an alphabetical tie-break on equal elo
 
-### Implementation for User Story 4
+### Implementation for User Story 7
 
-- [ ] T021 [P] [US4] Build the sort control (elo ascending / elo descending / alphabetical) in `frontend/components/FriendSortControl.tsx`
-- [ ] T022 [US4] Apply client-side sorting with an alphabetical tie-break to the rendered friends list in `frontend/app/(tabs)/social.tsx`
+- [x] T033 [P] [US7] Build the sort control (elo ascending / elo descending / alphabetical) in `frontend/components/FriendSortControl.tsx`
+- [x] T034 [US7] Apply client-side sorting with an alphabetical tie-break to the rendered friends list in `frontend/app/(tabs)/social.tsx`
 
-**Checkpoint**: All four user stories should now be independently functional.
+**Checkpoint**: User Stories 1–7 all work independently. ✅ Done.
 
 ---
 
-## Phase 7: Polish & Cross-Cutting Concerns
+## Phase 10: User Story 8 - Ver el ranking de aciertos del grupo (Priority: P3) 🆕
+
+**Goal**: Show a per-member ranking on the group screen, ordered by number of correctly guessed (resolved) predictions
+
+**Independent Test**: With a group containing several resolved predictions with different winners, open the group screen and confirm the ranking lists every member with their correct-guess count, ordered descending with an alphabetical tie-break
+
+### Implementation for User Story 8
+
+- [x] T035 [US8] Compute, per group member, the count of resolved `custom_predictions` in the group where the member's `prediction_votes.option` matches `resolved_option` (aborted and still-open predictions contribute nothing) in `backend/bethany_mock/social_repository.py` (`FR-034`) — depends on T028/T029
+- [x] T036 [US8] Sort the computed ranking descending by count with an alphabetical `display_name` tie-break, zero-filling members with no correct predictions, and include it as `ranking` in `serialize_group_detail()` in `backend/bethany_mock/social_repository.py` (`FR-035`, `FR-036`)
+- [x] T037 [P] [US8] Build `frontend/components/GroupRanking.tsx` rendering the member ranking list (name + correct count)
+- [x] T038 [US8] Render `GroupRanking` in the group detail screen using the `ranking` field from `getGroup()` in `frontend/app/(tabs)/groups/[groupId].tsx` and `frontend/data/social.ts`
+
+**Checkpoint**: All eight user stories work independently. ✅ Done.
+
+---
+
+## Phase 11: Polish & Cross-Cutting Concerns
 
 **Purpose**: Final documentation, validation, and cleanup across the whole feature
 
-- [ ] T023 [P] Update `specs/004-social/quickstart.md` with any UI copy/step changes discovered during implementation
-- [ ] T024 [P] Refresh `specs/004-social/research.md` if any deferred decision (e.g., pending invite approval) is revisited during implementation
-- [ ] T025 Run a local smoke check for add/remove friend, sort, create group, invite, and propose prediction against `frontend/app/(tabs)/social.tsx`, `frontend/app/groups/[groupId].tsx`, and `specs/004-social/quickstart.md`
+- [x] T039 [P] Renamed the local `backend/data/bethany.sqlite3` to `bethany.sqlite3.pre-amendment2.bak` (kept as backup instead of deleted) so a fresh DB with the new schema is created on next backend start, since this project has no migration mechanism (`research.md` Decision 12)
+- [x] T040 [P] Reviewed `specs/004-social/quickstart.md` against the implementation; no copy/step changes were needed
+- [x] T041 Ran an isolated backend smoke check (throwaway SQLite DB + separate port) covering propose-with-closing-date, past/missing-`closesAt` rejection, vote-after-close rejection, non-author resolve rejection, resolve, abort, double-resolve rejection, and ranking correctness — all assertions passed. The frontend UI itself was not exercised in a browser (no headless browser available in this environment); a manual Expo web pass is still recommended.
 
 ---
 
@@ -122,73 +192,54 @@
 
 ### Phase Dependencies
 
-- **Setup (Phase 1)**: No dependencies and can start immediately
-- **Foundational (Phase 2)**: Depends on Setup completion and blocks all user stories
-- **User Stories (Phase 3+)**: Depend on the Foundational phase and can then proceed in priority order or in parallel where marked
-- **Polish (Final Phase)**: Depends on the desired user stories being complete
+- **Setup (Phase 1)**: Done
+- **Foundational (Phase 2)**: Done — blocked all user stories, now unblocks them
+- **All user stories (Phases 3–10)**: Done, and independently testable per their Independent Test above
+- **Polish (Phase 11)**: Done — see the Status note for what was and wasn't hands-on verified
 
 ### User Story Dependencies
 
-- **User Story 1 (P1)**: Can start after the Foundational phase; no dependency on other stories
-- **User Story 2 (P2)**: Can start after the Foundational phase; requires a friend to exist to invite, so it is easiest to validate after US1, though it does not share files that block independent implementation
-- **User Story 3 (P2)**: Can start after the Foundational phase; requires a group to exist, so it is easiest to validate after US2
-- **User Story 4 (P3)**: Can start after the Foundational phase; only needs the friends list rendered by US1 to be meaningful to test
+- **User Story 1 (P1)**: No dependency on other stories
+- **User Story 2 (P1)**: No dependency on other stories
+- **User Story 3 (P2)**: Easiest to validate after US1 (needs a friend to invite)
+- **User Story 4 (P2)**: Easiest to validate after US3 (needs a group to propose into)
+- **User Story 5 (P2)**: Needs a prediction from US4 to vote on
+- **User Story 6 (P2)**: Needs votes from US5 to see resolution have an effect, and the schema from US4's T022
+- **User Story 7 (P3)**: Only needs the friends list rendered by US1 to be meaningful to test
+- **User Story 8 (P3)**: Needs resolved predictions from US6 to show non-zero counts
 
 ### Within Each User Story
 
 - Story tasks should be completed in order when a task depends on a file created by an earlier task
 - Tasks marked `[P]` can be done in parallel because they touch different files or isolated slices of the same feature
-- User Story 1 should be validated before relying on its friend list for User Story 2's invite flow
-- User Story 2 should be validated before expanding into User Story 3's custom predictions
-- User Story 4 can be implemented any time after Foundational, but is most useful to validate once US1 has produced a non-trivial friends list
+- T028 and T029 (resolve/abort) can be built in parallel with each other once T022 lands (different functions, same file, low collision risk, but land as separate commits if working with multiple contributors)
+- T035 and T036 (ranking computation and sorting) should land together since they're the same function's logic
 
 ### Parallel Opportunities
 
-- All Setup tasks marked `[P]` can run in parallel
-- Foundational tasks marked `[P]` can run in parallel once the schema direction (T004) is agreed
-- Within US1, the add-friend UI and the `FriendRow` adaptation can be built in parallel
-- Within US2, the create-group form and the `GroupCard` adaptation can be built in parallel
-- Within US3, the proposal form can be built while the backend validation (T020) is finalized, since they touch different files
-- US4's sort control component can be built in parallel with any other story's work once Foundational is done
+- T022 (schema) blocks T023, T024, T027, T028, T029; land it first
+- T031 (frontend request helpers) can be built in parallel with T028–T030 (backend) since they touch different files
+- T037 (`GroupRanking` component) can be built in parallel with T035–T036 (backend ranking computation) since they touch different files, then wired together in T038
 
 ---
 
-## Parallel Example: User Story 1
+## Parallel Example: User Story 6
 
 ```bash
-# Launch the add-friend UI and FriendRow adaptation together:
-Task: "Build the add-friend input with duplicate/self-add error feedback in `frontend/app/(tabs)/social.tsx`"
-Task: "Adapt `FriendRow` to real add/remove semantics and display each friend's elo in `frontend/components/FriendRow.tsx`"
+# Once T022 (schema) is done, resolve and abort can be implemented together:
+Task: "Implement resolve_prediction(...) in backend/bethany_mock/social_repository.py"
+Task: "Implement abort_prediction(...) in backend/bethany_mock/social_repository.py"
+# ...while the frontend client stub is built independently:
+Task: "Add resolvePrediction/abortPrediction request helpers in frontend/data/social.ts"
 ```
 
 ---
 
 ## Implementation Strategy
 
-### MVP First (User Story 1 Only)
+### Current State (as of 2026-07-13)
 
-1. Complete Phase 1: Setup
-2. Complete Phase 2: Foundational
-3. Complete Phase 3: User Story 1
-4. Stop and validate that friends can be added and removed correctly, with live elo shown
-
-### Incremental Delivery
-
-1. Complete Setup + Foundational so the backend and frontend can talk over `/social/*`
-2. Add User Story 1 and confirm add/remove friend works with real account validation
-3. Add User Story 2 and confirm group creation and friend invites work
-4. Add User Story 3 and confirm custom predictions are visible to all group members
-5. Add User Story 4 so the friends list can be sorted by elo or alphabetically
-6. Finish with documentation and smoke checks
-
-### Parallel Team Strategy
-
-With more than one contributor:
-
-1. One person can own the backend schema and repository work (T004-T007) while another builds the frontend social client and types (T008-T009)
-2. After Foundational is ready, US1 and US4 can proceed in parallel since US4 only needs the friends list UI shell from US1's file
-3. US2 and US3 can be split across contributors once a group exists to invite into and propose predictions in
-4. Use the polish phase to align docs and the final smoke validation
+All 8 user stories are implemented, including the 2026-07-13 amendment (prediction closing date, resolve/abort, group ranking). See the Status note at the top of this file for what was verified this session and the one remaining manual-verification gap (frontend UI in an actual browser).
 
 ---
 
@@ -197,5 +248,7 @@ With more than one contributor:
 - `[P]` tasks = different files and no blocking dependency on unfinished work
 - `[Story]` labels map directly to the prioritized user stories in `spec.md`
 - TDD is deferred, so the task list focuses on implementation and validation rather than test-first ordering
-- Keep friend adds and group invites immediate (no pending-approval state) per the spec's Assumptions
+- Friend requests and group invites require explicit accept/reject; there is no immediate-add path (see `spec.md` Amendment, 2026-07-12)
 - Elo shown for a friend or group member must always be resolved live from that account's profile, never cached or duplicated
+- Resolving and finalizing a prediction early are the same backend operation (`research.md` Decision 9) — there is no separate "early finalize" endpoint or status
+- The group ranking is computed on every `GET /social/groups/{groupId}` call, not stored (`research.md` Decision 11)

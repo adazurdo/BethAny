@@ -87,12 +87,21 @@ Represents a custom prediction proposed inside a `PredictionGroup`.
 - `question`
 - `options`: ordered list of option strings
 - `created_at`
+- `closes_at`: closing date/time set at creation; MUST be in the future when the prediction is created (`FR-018`, `FR-028`)
+- `status`: `open`, `resolved`, or `aborted` (default `open`)
+- `resolved_option`: one of `options`, set only when `status = resolved`
+- `resolved_at`: set only when `status` transitions to `resolved` or `aborted`
 
 **Rules**:
 - `question` MUST be non-empty.
 - `options` MUST contain at least two non-empty entries (`FR-018`, `FR-019`).
+- `closes_at` MUST be a valid future timestamp at creation time (`FR-018`, `FR-019`, `FR-028`).
 - Only accounts with an active `GroupMembership` for `group_id` can create a `CustomPrediction` in that group.
-- A `CustomPrediction` is visible to every current member of its group (`FR-020`).
+- A `CustomPrediction` is visible to every current member of its group (`FR-020`), including `closes_at`, `status`, and — once resolved — `resolved_option` (`FR-028`).
+- Only `created_by_account_id` may transition `status` away from `open` (`FR-030`, `FR-031`, `FR-032`, `FR-033`).
+- Resolving (`status -> resolved`) requires setting `resolved_option` to one of `options`; this is allowed at or after `closes_at` (normal resolution, `FR-030`) or before `closes_at` (early finalization, `FR-031`) — the author-only, open-status check is identical in both cases, so both are the same operation.
+- Aborting (`status -> aborted`) requires no `resolved_option` and is allowed any time before the prediction is resolved (`FR-032`).
+- `status` MUST NOT transition once it is `resolved` or `aborted` (`FR-033`).
 
 ### PredictionVote
 
@@ -111,6 +120,19 @@ Represents one member's current vote on a `CustomPrediction`.
 - Casting a new vote for a prediction the member already voted on updates `option`/`updated_at` on the existing row instead of inserting a new one.
 - Only accounts with an active `GroupMembership` for the prediction's `group_id` can vote (`FR-022`).
 - `option` MUST be one of the prediction's stored `options` (`FR-022`).
+- A vote MUST NOT be cast or changed once the parent `CustomPrediction`'s `closes_at` has passed, or once its `status` is no longer `open` (`FR-029`).
+
+### GroupRanking *(derived, not stored)*
+
+A per-`PredictionGroup` view computed from existing rows — not a new table.
+
+**Computation**:
+- For each `GroupMembership` of the group, count the `CustomPrediction` rows in that group where `status = resolved` and the member has a `PredictionVote` with `option = resolved_option`.
+- `aborted` predictions, and `open` (unresolved) predictions, contribute zero to every member's count (`FR-034`).
+- Members with no matching votes appear with a count of `0`.
+
+**Rules**:
+- Ordered descending by count; ties broken alphabetically by `display_name` (`FR-035`, `FR-036`).
 
 ## Relationships
 

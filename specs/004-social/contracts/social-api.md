@@ -12,8 +12,10 @@ Defines the local API surface the frontend uses to manage friends, prediction gr
 - The friends list always reflects each friend's current elo (no stale/duplicated values).
 - A signed-in user can create a prediction group and becomes its owner and first member.
 - A group member can invite one of their own friends into the group; the invitee must accept before becoming a member.
-- A group member can propose a custom prediction visible to every member of that group.
-- A group member can vote on a custom prediction's options; voting again changes their vote.
+- A group member can propose a custom prediction, with a closing date, visible to every member of that group.
+- A group member can vote on a custom prediction's options while it is open; voting again changes their vote.
+- The prediction's author can resolve it (mark the correct option, at or before its closing date) or abort it (no correct option); once resolved or aborted, no further votes are accepted.
+- The group detail view includes a ranking of members by number of correctly guessed (resolved) predictions.
 
 ## Endpoints
 
@@ -122,7 +124,7 @@ Lists the requester's incoming pending group invites, across all groups.
 
 ### `GET /social/groups/{groupId}`
 
-Returns full group detail: active members, pending invites (visible to members), and custom predictions with vote tallies and the requester's own vote.
+Returns full group detail: active members, pending invites (visible to members), custom predictions with vote tallies and the requester's own vote, and the group's ranking of members by number of correctly guessed predictions.
 
 **Response** (`200`):
 ```json
@@ -144,13 +146,23 @@ Returns full group detail: active members, pending invites (visible to members),
       "options": ["Home", "Away", "Draw"],
       "createdByAccountId": "acct_123",
       "createdAt": "2026-07-12T10:05:00Z",
+      "closesAt": "2026-07-13T20:00:00Z",
+      "status": "open",
+      "resolvedOption": null,
+      "resolvedAt": null,
       "votes": { "Home": 2, "Away": 0, "Draw": 1 },
       "totalVotes": 3,
       "myVote": "Home"
     }
+  ],
+  "ranking": [
+    { "accountId": "acct_123", "displayName": "Alex", "correctCount": 3 },
+    { "accountId": "acct_789", "displayName": "Bea", "correctCount": 1 }
   ]
 }
 ```
+
+`status` is one of `open`, `resolved`, `aborted`. `resolvedOption` and `resolvedAt` are `null` unless `status = resolved` (or, for `resolvedAt` only, `status = aborted`). `ranking` includes every current member, ordered by `correctCount` descending with an alphabetical tie-break on `displayName`; members with zero correct predictions are included with `correctCount: 0`.
 
 **Errors**:
 - `403` requester is not a member of the group
@@ -201,19 +213,19 @@ Proposes a custom prediction inside the group. Requires the requester to be a cu
 
 **Request**:
 ```json
-{ "question": "Who wins tonight?", "options": ["Home", "Away", "Draw"] }
+{ "question": "Who wins tonight?", "options": ["Home", "Away", "Draw"], "closesAt": "2026-07-13T20:00:00Z" }
 ```
 
 **Response** (`201`): same shape as `GET /social/groups/{groupId}`.
 
 **Errors**:
-- `400` empty question or fewer than two non-empty options
+- `400` empty question, fewer than two non-empty options, or `closesAt` missing/not a valid future timestamp
 - `403` requester is not a member of the group
 - `404` group does not exist
 
 ### `POST /social/groups/{groupId}/predictions/{predictionId}/votes`
 
-Casts (or changes) the requester's vote on a custom prediction. Requires the requester to be a current member of the prediction's group.
+Casts (or changes) the requester's vote on a custom prediction. Requires the requester to be a current member of the prediction's group, and the prediction must still be `open` and not past its `closesAt`.
 
 **Request**:
 ```json
@@ -226,6 +238,35 @@ Casts (or changes) the requester's vote on a custom prediction. Requires the req
 - `400` `option` is not one of the prediction's options
 - `403` requester is not a member of the group
 - `404` group or prediction does not exist
+- `409` the prediction is no longer `open` (resolved, aborted, or past its `closesAt`)
+
+### `POST /social/groups/{groupId}/predictions/{predictionId}/resolve`
+
+Marks the correct option for a custom prediction. Only the prediction's author may call this; it works identically whether called at/after `closesAt` (normal resolution) or before it (early finalization) — both are the same "mark it resolved now" operation. Requires the prediction to currently be `open`.
+
+**Request**:
+```json
+{ "option": "Home" }
+```
+
+**Response** (`200`): same shape as `GET /social/groups/{groupId}`.
+
+**Errors**:
+- `400` `option` is not one of the prediction's options
+- `403` requester is not the prediction's author
+- `404` group or prediction does not exist
+- `409` the prediction is not `open` (already resolved or aborted)
+
+### `POST /social/groups/{groupId}/predictions/{predictionId}/abort`
+
+Aborts a custom prediction without marking any option as correct. Only the prediction's author may call this. Requires the prediction to currently be `open`.
+
+**Response** (`200`): same shape as `GET /social/groups/{groupId}`.
+
+**Errors**:
+- `403` requester is not the prediction's author
+- `404` group or prediction does not exist
+- `409` the prediction is not `open` (already resolved or aborted)
 
 ## Notes
 
@@ -233,3 +274,4 @@ Casts (or changes) the requester's vote on a custom prediction. Requires the req
 - This contract is local-first: the backend owns persistence in the same SQLite database used for accounts (`backend/data/bethany.sqlite3`).
 - Friend, member, and voter display data (`displayName`, `elo`) is always resolved live from the referenced account's current profile; it is never cached or duplicated in the response payload's underlying storage.
 - No push notifications are sent for incoming requests/invites; the recipient sees pending items when they open the Social tab or the group screen during an active session (see spec Assumptions).
+- `ranking` is computed on every `GET /social/groups/{groupId}` call from existing `custom_predictions` and `prediction_votes` rows; it is not a separately stored or cached entity.

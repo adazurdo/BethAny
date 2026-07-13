@@ -94,6 +94,10 @@ class CustomPrediction:
     question: str
     options: list[str]
     created_at: str
+    closes_at: str
+    status: str = "open"
+    resolved_option: str | None = None
+    resolved_at: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
