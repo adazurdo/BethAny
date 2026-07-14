@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useLocalSearchParams } from "expo-router";
-import DesktopShell from "../../components/DesktopShell";
-import { SectionCard } from "../../components/SectionCard";
-import { EventCard } from "../../components/EventCard";
-import { mockEvents } from "../../data";
+import DesktopShell from "../../../components/DesktopShell";
+import { SectionCard } from "../../../components/SectionCard";
+import { EventCard } from "../../../components/EventCard";
+import { mockEvents } from "../../../data";
 import {
   CompetitionSource,
   MockCompetitionMatch,
@@ -12,8 +12,8 @@ import {
   fetchMockCompetitionMatches,
   fetchMockCompetitions,
   syncMockCompetition,
-} from "../../data/mockCompetitions";
-import { colors, radii, spacing } from "../../theme";
+} from "../../../data/mockCompetitions";
+import { colors, radii, spacing } from "../../../theme";
 
 export default function MatchesByCompetitionScreen() {
   const params = useLocalSearchParams<{ competition?: string }>();

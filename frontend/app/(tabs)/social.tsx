@@ -5,7 +5,9 @@ import { CreateGroupModal } from "../../components/CreateGroupModal";
 import { FriendRow } from "../../components/FriendRow";
 import { FriendSortControl, FriendSortOption } from "../../components/FriendSortControl";
 import { GroupCard } from "../../components/GroupCard";
+import { NotificationBadge } from "../../components/NotificationBadge";
 import { SectionCard } from "../../components/SectionCard";
+import { useSocialNotifications } from "../../components/SocialNotificationsContext";
 import { colors, radii, spacing } from "../../theme";
 import {
   FriendRequest,
@@ -41,6 +43,7 @@ function sortFriends(friends: SocialFriend[], sort: FriendSortOption): SocialFri
 
 export default function SocialScreen() {
   const router = useRouter();
+  const { setFriendRequestCount, setGroupInviteCount, syncGroups, hasGroupUpdate } = useSocialNotifications();
 
   const [friendState, setFriendState] = useState<FriendState>({ friends: [], incomingRequests: [], outgoingRequests: [] });
   const [groups, setGroups] = useState<GroupSummary[]>([]);
@@ -63,6 +66,9 @@ export default function SocialScreen() {
         setFriendState(friendsResult);
         setGroups(groupsResult.groups);
         setGroupInvites(invitesResult.invites);
+        setFriendRequestCount(friendsResult.incomingRequests.length);
+        setGroupInviteCount(invitesResult.invites.length);
+        syncGroups(groupsResult.groups);
       })
       .catch((err) => {
         if (cancelled) return;
@@ -74,6 +80,7 @@ export default function SocialScreen() {
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const sortedFriends = useMemo(() => sortFriends(friendState.friends, sort), [friendState.friends, sort]);
@@ -98,7 +105,9 @@ export default function SocialScreen() {
 
   async function handleAcceptRequest(requestId: string) {
     try {
-      setFriendState(await acceptFriendRequest(requestId));
+      const result = await acceptFriendRequest(requestId);
+      setFriendState(result);
+      setFriendRequestCount(result.incomingRequests.length);
     } catch (err) {
       setFriendError(err instanceof Error ? err.message : "No se pudo aceptar la solicitud.");
     }
@@ -106,7 +115,9 @@ export default function SocialScreen() {
 
   async function handleRejectRequest(requestId: string) {
     try {
-      setFriendState(await rejectFriendRequest(requestId));
+      const result = await rejectFriendRequest(requestId);
+      setFriendState(result);
+      setFriendRequestCount(result.incomingRequests.length);
     } catch (err) {
       setFriendError(err instanceof Error ? err.message : "No se pudo rechazar la solicitud.");
     }
@@ -123,9 +134,14 @@ export default function SocialScreen() {
   async function handleAcceptGroupInvite(invite: IncomingGroupInvite) {
     try {
       await acceptGroupInvite(invite.id);
-      setGroupInvites((current) => current.filter((item) => item.id !== invite.id));
+      setGroupInvites((current) => {
+        const next = current.filter((item) => item.id !== invite.id);
+        setGroupInviteCount(next.length);
+        return next;
+      });
       const groupsResult = await listGroups();
       setGroups(groupsResult.groups);
+      syncGroups(groupsResult.groups);
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : "No se pudo aceptar la invitacion.");
     }
@@ -134,7 +150,11 @@ export default function SocialScreen() {
   async function handleRejectGroupInvite(invite: IncomingGroupInvite) {
     try {
       await rejectGroupInvite(invite.id);
-      setGroupInvites((current) => current.filter((item) => item.id !== invite.id));
+      setGroupInvites((current) => {
+        const next = current.filter((item) => item.id !== invite.id);
+        setGroupInviteCount(next.length);
+        return next;
+      });
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : "No se pudo rechazar la invitacion.");
     }
@@ -144,7 +164,14 @@ export default function SocialScreen() {
     const group = await createGroup(name);
     setGroups((current) => [
       ...current,
-      { id: group.id, name: group.name, ownerAccountId: group.ownerAccountId, memberCount: group.members.length, createdAt: group.createdAt },
+      {
+        id: group.id,
+        name: group.name,
+        ownerAccountId: group.ownerAccountId,
+        memberCount: group.members.length,
+        createdAt: group.createdAt,
+        hasUpdate: false,
+      },
     ]);
   }
 
@@ -167,7 +194,10 @@ export default function SocialScreen() {
           {groupInvites.map((invite) => (
             <View key={invite.id} style={styles.requestRow}>
               <View style={styles.requestInfo}>
-                <Text style={styles.requestName}>{invite.groupName}</Text>
+                <View style={styles.requestNameRow}>
+                  <Text style={styles.requestName}>{invite.groupName}</Text>
+                  <NotificationBadge inline />
+                </View>
                 <Text style={styles.requestMeta}>Invitado por {invite.inviterDisplayName}</Text>
               </View>
               <View style={styles.requestActions}>
@@ -191,6 +221,7 @@ export default function SocialScreen() {
                 key={group.id}
                 name={group.name}
                 memberCount={group.memberCount}
+                hasUpdate={hasGroupUpdate(group.id)}
                 onPress={() => router.push(`/groups/${group.id}`)}
               />
             ))
@@ -225,7 +256,10 @@ export default function SocialScreen() {
             {friendState.incomingRequests.map((request: FriendRequest) => (
               <View key={request.id} style={styles.requestRow}>
                 <View style={styles.requestInfo}>
-                  <Text style={styles.requestName}>{request.displayName}</Text>
+                  <View style={styles.requestNameRow}>
+                    <Text style={styles.requestName}>{request.displayName}</Text>
+                    <NotificationBadge inline />
+                  </View>
                   <Text style={styles.requestMeta}>Elo {request.elo}</Text>
                 </View>
                 <View style={styles.requestActions}>
@@ -372,6 +406,11 @@ const styles = StyleSheet.create({
   requestInfo: {
     flex: 1,
     gap: 2,
+  },
+  requestNameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
   },
   requestName: {
     color: colors.text,

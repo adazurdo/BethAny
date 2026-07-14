@@ -19,7 +19,7 @@ Esta primera version sera un prototipo MVP, el nombre de la especificacion sera 
 
 ## Constitution Alignment *(mandatory)*
 
-- **Simplicity Statement**: Build a mock-only MVP with three core views, one persistent bottom navigation bar, and shared reusable mock data. Avoid real prediction logic, real money, external integrations, and persistent account systems in this phase.
+- **Simplicity Statement**: Build a mock-only MVP with three core views, one always-visible persistent bottom navigation bar, and shared reusable mock data. Avoid real prediction logic, real money, external integrations, and persistent account systems in this phase.
 - **Local-First Confirmation**: The prototype is assumed to run locally during development and validation. No cloud services are required for the MVP.
 - **Stack Confirmation**: The feature uses Python for supporting logic and React for the user interface. Mobile behavior must be validated with Expo when mobile flows are reviewed.
 - **TDD Mode**: Deferred. Test-first enforcement is not active for this prototype; tests can be added later when the product owner activates TDD.
@@ -79,12 +79,14 @@ As a user, I can move between the main pages using a bottom horizontal navigatio
 
 **Why this priority**: Navigation is required to make the three main views usable as one product.
 
-**Independent Test**: Interact with the bottom navigation and confirm the user can move between home, profile, and social views from desktop and mobile layouts.
+**Independent Test**: Interact with the bottom navigation and confirm the user can move between home, profile, and social views from desktop and mobile layouts, and confirm the bar itself never disappears, including inside secondary or nested screens.
 
 **Acceptance Scenarios**:
 
 1. **Given** the user is on any main page, **When** they tap a navigation item, **Then** the corresponding page becomes visible.
 2. **Given** the user is on a narrow screen, **When** the navigation renders, **Then** the bottom bar remains usable and accessible.
+3. **Given** the user is on any secondary or nested screen reached from a main section (e.g. an event detail, a ranking detail, or a prediction group detail), **When** that screen is open, **Then** the bottom navigation bar remains visible and does not hide, collapse, or get replaced.
+4. **Given** the user scrolls content within any page, **When** scrolling up or down, **Then** the bottom navigation bar stays fixed in place and is never hidden by the scroll behavior.
 
 ---
 
@@ -94,6 +96,7 @@ As a user, I can move between the main pages using a bottom horizontal navigatio
 - What happens when a profile name is long? The layout should wrap or truncate gracefully without breaking the card.
 - What happens when the screen is very small? The bottom navigation and cards should remain legible and tappable.
 - What happens when the mock friends list is empty? The social page should show guidance and a clear empty-state message.
+- What happens when the user opens a secondary screen outside the three main tabs (e.g. an event, a ranking detail, or a prediction group)? The bottom navigation bar MUST remain visible so the user can leave that screen through the same persistent bar.
 
 ## Requirements *(mandatory)*
 
@@ -103,6 +106,7 @@ As a user, I can move between the main pages using a bottom horizontal navigatio
 - **FR-002**: The system MUST present a profile page with a mock account name, avatar, elo value, and summary information.
 - **FR-003**: The system MUST present a social page with mock groups, friends, and a visible add/remove friends interaction.
 - **FR-004**: The system MUST provide a bottom navigation bar that allows switching between the main pages.
+- **FR-004a**: The bottom navigation bar MUST remain visible and persistent at all times for an authenticated user, regardless of which section, sub-page, or secondary/nested screen is currently active (including event details, ranking details, and prediction group details). The bar MUST NOT be hidden, collapsed, auto-dismissed on scroll, or replaced by a full-screen view.
 - **FR-005**: The system MUST show a global ranking summary inside the home page or profile page without creating a separate navigation tab.
 - **FR-006**: The system MUST use a modern orange-and-white visual style that feels attractive and accessible for young users.
 - **FR-007**: The system MUST support both web and mobile layouts without losing clarity or navigation access.
@@ -127,6 +131,7 @@ As a user, I can move between the main pages using a bottom horizontal navigatio
 - **SC-003**: At least 8 out of 10 test participants describe the visual style as modern, youthful, and easy to understand.
 - **SC-004**: The prototype remains readable and navigable across common desktop and mobile screen sizes in all review sessions.
 - **SC-005**: Users can complete a page switch through the bottom navigation in a single action on every main section.
+- **SC-006**: The bottom navigation bar is visibly present in 100% of screens reachable by an authenticated user, including secondary and nested screens, across all review sessions.
 
 ## Assumptions
 

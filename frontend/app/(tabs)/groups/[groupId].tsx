@@ -5,6 +5,7 @@ import { Icon } from "../../../components/Icon";
 import { SectionCard } from "../../../components/SectionCard";
 import { GroupRanking } from "../../../components/GroupRanking";
 import { useAuth } from "../../../components/AuthContext";
+import { useSocialNotifications } from "../../../components/SocialNotificationsContext";
 import { ClosingDatePicker, ClosingDateValue, closingValueToDate, defaultClosingValue } from "../../../components/ClosingDatePicker";
 import { colors, radii, spacing } from "../../../theme";
 import {
@@ -28,6 +29,7 @@ function formatClosesAt(closesAt: string) {
 export default function GroupDetailScreen() {
   const router = useRouter();
   const { account } = useAuth();
+  const { clearGroupUpdate } = useSocialNotifications();
   const params = useLocalSearchParams<{ groupId: string }>();
   const groupId = params.groupId;
 
@@ -54,6 +56,7 @@ export default function GroupDetailScreen() {
       .then(([groupResult, friendsResult]) => {
         setGroup(groupResult);
         setFriends(friendsResult.friends);
+        clearGroupUpdate(groupResult.id);
       })
       .catch((err) => {
         setLoadError(err instanceof Error ? err.message : "No se pudo cargar el grupo.");

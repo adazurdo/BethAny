@@ -28,6 +28,7 @@ export type GroupSummary = {
   ownerAccountId: string;
   memberCount: number;
   createdAt: string;
+  hasUpdate: boolean;
 };
 
 export type GroupMember = {

@@ -40,8 +40,8 @@ def _serialize_account(account: UserAccount) -> None:
         )
         connection.execute(
             """
-            INSERT INTO account_state (account_id, profile_json, bets_json, updated_at)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO account_state (account_id, profile_json, bets_json, friends_json, updated_at)
+            VALUES (?, ?, ?, ?, ?)
             ON CONFLICT(account_id) DO UPDATE SET
                 profile_json = excluded.profile_json,
                 bets_json = excluded.bets_json,
@@ -51,6 +51,7 @@ def _serialize_account(account: UserAccount) -> None:
                 account.id,
                 dumps(asdict(account.profile)),
                 dumps([bet.to_dict() for bet in account.bets]),
+                dumps([]),
                 _utcnow(),
             ),
         )

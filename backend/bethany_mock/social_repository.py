@@ -34,6 +34,43 @@ def initialize_repository() -> None:
     initialize_database()
 
 
+def _get_seen_at(account_id: str, mark_key: str) -> str | None:
+    with get_connection() as connection:
+        row = fetch_one(
+            connection,
+            "SELECT seen_at FROM notification_seen WHERE account_id = ? AND mark_key = ?",
+            (account_id, mark_key),
+        )
+    return row["seen_at"] if row else None
+
+
+def mark_seen(account_id: str, mark_key: str) -> None:
+    with get_connection() as connection:
+        connection.execute(
+            """
+            INSERT INTO notification_seen (account_id, mark_key, seen_at)
+            VALUES (?, ?, ?)
+            ON CONFLICT(account_id, mark_key) DO UPDATE SET seen_at = excluded.seen_at
+            """,
+            (account_id, mark_key, _utcnow()),
+        )
+        connection.commit()
+
+
+def mark_group_seen(account_id: str, group_id: str) -> None:
+    mark_seen(account_id, f"group:{group_id}")
+
+
+def _group_has_unseen_update(account_id: str, group_id: str) -> bool:
+    seen_at = _get_seen_at(account_id, f"group:{group_id}")
+    for prediction in list_predictions(group_id):
+        if prediction.status == "open" or not prediction.resolved_at:
+            continue
+        if seen_at is None or _parse_timestamp(prediction.resolved_at) > _parse_timestamp(seen_at):
+            return True
+    return False
+
+
 # --- Friend requests -------------------------------------------------------
 
 
@@ -295,6 +332,7 @@ def list_groups_for_account(account_id: str) -> list[dict]:
             "ownerAccountId": group.owner_account_id,
             "memberCount": len(list_memberships(group.id)),
             "createdAt": group.created_at,
+            "hasUpdate": _group_has_unseen_update(account_id, group.id),
         }
         for group in groups
     ]

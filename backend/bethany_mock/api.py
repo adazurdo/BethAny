@@ -34,6 +34,7 @@ from .social_repository import (
     invite_member,
     list_groups_for_account,
     list_incoming_group_invites,
+    mark_group_seen,
     remove_friend,
     resolve_prediction,
     respond_friend_request,
@@ -154,6 +155,7 @@ class BethanyRequestHandler(BaseHTTPRequestHandler):
                 if not any(member["accountId"] == account_id for member in detail["members"]):
                     _json_response(self, HTTPStatus.FORBIDDEN, {"error": "requester is not a member of this group"})
                     return
+                mark_group_seen(account_id, group_id)
                 _json_response(self, HTTPStatus.OK, detail)
                 return
 

@@ -1,17 +1,20 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import { NotificationBadge } from "./NotificationBadge";
 import { colors, radii, spacing } from "../theme";
 
 type GroupCardProps = {
   name: string;
   memberCount: number;
+  hasUpdate?: boolean;
   onPress: () => void;
 };
 
-export function GroupCard({ name, memberCount, onPress }: GroupCardProps) {
+export function GroupCard({ name, memberCount, hasUpdate = false, onPress }: GroupCardProps) {
   return (
     <Pressable onPress={onPress} style={styles.card}>
       <View style={styles.header}>
         <Text style={styles.name}>{name}</Text>
+        {hasUpdate ? <NotificationBadge inline /> : null}
       </View>
       <Text style={styles.meta}>{memberCount} {memberCount === 1 ? "miembro" : "miembros"}</Text>
     </Pressable>

@@ -1,12 +1,24 @@
-import { Redirect, Tabs } from "expo-router";
-import { StyleSheet, View } from "react-native";
+import { Redirect, Tabs, useRouter } from "expo-router";
+import { Pressable, StyleSheet, View } from "react-native";
 import { useAuth } from "../../components/AuthContext";
 import { HeaderAvatar } from "../../components/HeaderAvatar";
 import Icon from "../../components/Icon";
+import { NotificationBadge } from "../../components/NotificationBadge";
+import { useSocialNotifications } from "../../components/SocialNotificationsContext";
 import { colors } from "../../theme";
+
+function HeaderBackButton() {
+  const router = useRouter();
+  return (
+    <Pressable onPress={() => router.back()} style={styles.headerBack} hitSlop={8}>
+      <Icon glyph="back" size={20} color={colors.text} />
+    </Pressable>
+  );
+}
 
 export default function TabsLayout() {
   const { isAuthenticated } = useAuth();
+  const { hasNotifications } = useSocialNotifications();
 
   if (!isAuthenticated) {
     return <Redirect href="/(auth)" />;
@@ -51,15 +63,31 @@ export default function TabsLayout() {
         options={{
           title: "Social",
           tabBarLabel: "Social",
-          tabBarIcon: ({ color, focused }) => <Icon glyph="social" color={color as string} size={20} focused={focused} />,
+          tabBarIcon: ({ color, focused }) => (
+            <View>
+              <Icon glyph="social" color={color as string} size={20} focused={focused} />
+              {hasNotifications ? <NotificationBadge /> : null}
+            </View>
+          ),
         }}
       />
       <Tabs.Screen name="groups/[groupId]" options={{ href: null, title: "Grupo" }} />
+      <Tabs.Screen
+        name="matches/index"
+        options={{ href: null, title: "Partidos", headerLeft: () => <HeaderBackButton /> }}
+      />
+      <Tabs.Screen
+        name="ranking/index"
+        options={{ href: null, title: "Ranking", headerLeft: () => <HeaderBackButton /> }}
+      />
     </Tabs>
   );
 }
 
 const styles = StyleSheet.create({
+  headerBack: {
+    paddingHorizontal: 12,
+  },
   header: {
     backgroundColor: colors.background,
     borderBottomWidth: 1,

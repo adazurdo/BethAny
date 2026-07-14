@@ -36,6 +36,7 @@ def initialize_database() -> None:
                 account_id TEXT PRIMARY KEY,
                 profile_json TEXT NOT NULL,
                 bets_json TEXT NOT NULL,
+                friends_json TEXT NOT NULL DEFAULT '[]',
                 updated_at TEXT NOT NULL,
                 FOREIGN KEY(account_id) REFERENCES accounts(id) ON DELETE CASCADE
             )
@@ -121,6 +122,15 @@ def initialize_database() -> None:
                 resolved_at TEXT,
                 FOREIGN KEY(group_id) REFERENCES prediction_groups(id) ON DELETE CASCADE,
                 FOREIGN KEY(created_by_account_id) REFERENCES accounts(id) ON DELETE CASCADE
+            )
+        """)
+        connection.execute("""
+            CREATE TABLE IF NOT EXISTS notification_seen (
+                account_id TEXT NOT NULL,
+                mark_key TEXT NOT NULL,
+                seen_at TEXT NOT NULL,
+                PRIMARY KEY (account_id, mark_key),
+                FOREIGN KEY(account_id) REFERENCES accounts(id) ON DELETE CASCADE
             )
         """)
         connection.execute("""
