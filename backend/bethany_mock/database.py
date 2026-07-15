@@ -134,6 +134,19 @@ def initialize_database() -> None:
             )
         """)
         connection.execute("""
+            CREATE TABLE IF NOT EXISTS placed_bets (
+                id TEXT PRIMARY KEY,
+                account_id TEXT NOT NULL,
+                bet_type TEXT NOT NULL,
+                stake REAL NOT NULL,
+                combined_odds REAL NOT NULL,
+                potential_winnings REAL NOT NULL,
+                selections_json TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY(account_id) REFERENCES accounts(id) ON DELETE CASCADE
+            )
+        """)
+        connection.execute("""
             CREATE TABLE IF NOT EXISTS prediction_votes (
                 id TEXT PRIMARY KEY,
                 prediction_id TEXT NOT NULL,

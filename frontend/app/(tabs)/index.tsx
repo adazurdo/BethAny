@@ -167,7 +167,7 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   marketTabActive: {
-    backgroundColor: "rgba(39,224,163,0.2)",
+    backgroundColor: "rgba(168,85,247,0.2)",
     borderColor: colors.primary,
     color: colors.primary,
   },

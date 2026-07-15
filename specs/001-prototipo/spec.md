@@ -17,6 +17,10 @@ Esta primera version sera un prototipo MVP, el nombre de la especificacion sera 
 
 - Q: How should the global ranking be represented in the MVP? → A: Include it as a section inside the home page or profile page, without creating a separate tab.
 
+## Amendment (post-implementation feedback, 2026-07-16)
+
+"quiero actualizar el aspecto de la pagina... quiero que quede moderna y visual sin estar sobrecargada, coge de ejemplo esta imagen [captura del boleto de Winamax: fondo azul marino oscuro, tarjetas limpias, barra lateral de competiciones, botones de resultado con colores solidos]" — the original orange-and-white direction from the initial description (FR-006) was never carried into implementation; the app had instead settled on a dark navy background with a mint-green accent. Following this feedback, the visual direction changes again: a **deep indigo/violet dark theme** (background/surface in near-black indigo, a vivid violet accent for primary actions and active states) replaces the mint-green accent, applied consistently across every screen (Home, Partidos/boleto, Perfil, Social, Ranking, Mis apuestas) via the shared `frontend/theme/index.ts` tokens — not just the betting screens the reference screenshot happened to show. The goal is a modern, clean, uncluttered look (generous spacing, clear card boundaries, one strong accent color used sparingly for calls to action), not a literal pixel clone of the reference. FR-006 is superseded by FR-006a below.
+
 ## Constitution Alignment *(mandatory)*
 
 - **Simplicity Statement**: Build a mock-only MVP with three core views, one always-visible persistent bottom navigation bar, and shared reusable mock data. Avoid real prediction logic, real money, external integrations, and persistent account systems in this phase.
@@ -108,7 +112,8 @@ As a user, I can move between the main pages using a bottom horizontal navigatio
 - **FR-004**: The system MUST provide a bottom navigation bar that allows switching between the main pages.
 - **FR-004a**: The bottom navigation bar MUST remain visible and persistent at all times for an authenticated user, regardless of which section, sub-page, or secondary/nested screen is currently active (including event details, ranking details, and prediction group details). The bar MUST NOT be hidden, collapsed, auto-dismissed on scroll, or replaced by a full-screen view.
 - **FR-005**: The system MUST show a global ranking summary inside the home page or profile page without creating a separate navigation tab.
-- **FR-006**: The system MUST use a modern orange-and-white visual style that feels attractive and accessible for young users.
+- **FR-006**: ~~The system MUST use a modern orange-and-white visual style that feels attractive and accessible for young users.~~ Superseded by FR-006a (see Amendment, 2026-07-16) — this direction was never carried into implementation.
+- **FR-006a**: The system MUST use a modern, uncluttered dark visual style (deep indigo/violet background and panels, a single vivid violet accent reserved for primary actions and active states) applied consistently across every screen, inspired by — but not a literal copy of — the referenced sports-betting UI.
 - **FR-007**: The system MUST support both web and mobile layouts without losing clarity or navigation access.
 - **FR-008**: The system MUST rely on mock data only in this prototype and MUST NOT require real money, real prediction outcomes, or live external services.
 - **FR-009**: The system MUST treat social actions in this prototype as mock interactions that can change within the session but do not need permanent storage.

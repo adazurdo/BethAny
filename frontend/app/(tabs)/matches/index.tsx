@@ -147,6 +147,13 @@ export default function MatchesByCompetitionScreen() {
                   featured={false}
                   homeTeam={{ name: match.homeTeamName, crestUrl: teamsById.get(match.homeTeamId)?.crestUrl }}
                   awayTeam={{ name: match.awayTeamName, crestUrl: teamsById.get(match.awayTeamId)?.crestUrl }}
+                  match={{
+                    matchId: match.id,
+                    homeOdds: match.homeOdds,
+                    drawOdds: match.drawOdds,
+                    awayOdds: match.awayOdds,
+                    status: match.status,
+                  }}
                 />
               ))
             ) : (

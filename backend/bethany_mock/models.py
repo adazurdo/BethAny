@@ -32,9 +32,29 @@ class BetRecord:
     title: str
     meta: str | None = None
     status: str = "open"
+    match_id: str | None = None
+    outcome: str | None = None
+    odds: float | None = None
+    stake: float | None = None
 
     def to_dict(self) -> dict[str, Any]:
+        """Snake_case storage shape (round-trips through `BetRecord(**bet.to_dict())`).
+
+        The API-facing camelCase shape is built separately in `UserAccount.to_dict()`.
+        """
         return asdict(self)
+
+    def to_api_dict(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "title": self.title,
+            "meta": self.meta,
+            "status": self.status,
+            "matchId": self.match_id,
+            "outcome": self.outcome,
+            "odds": self.odds,
+            "stake": self.stake,
+        }
 
 
 @dataclass
@@ -117,6 +137,33 @@ class PredictionVote:
 
 
 @dataclass
+class PlacedBetSelection:
+    match_id: str
+    match_label: str
+    outcome: str
+    odds: float
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
+class PlacedBet:
+    id: str
+    account_id: str
+    bet_type: str
+    stake: float
+    combined_odds: float
+    potential_winnings: float
+    created_at: str
+    selections: list[PlacedBetSelection] = field(default_factory=list)
+    status: str = "realizada"
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
 class SessionState:
     active_account_id: str | None = None
 
@@ -149,7 +196,7 @@ class UserAccount:
             "createdAt": self.created_at,
             "lastLoginAt": self.last_login_at,
             "profile": self.profile.to_dict(),
-            "bets": [bet.to_dict() for bet in self.bets],
+            "bets": [bet.to_api_dict() for bet in self.bets],
         }
 
 

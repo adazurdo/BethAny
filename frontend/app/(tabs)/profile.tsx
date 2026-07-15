@@ -145,6 +145,9 @@ export default function ProfileScreen() {
           <Pressable onPress={handleSave} style={styles.saveButton} disabled={saving}>
             {saving ? <ActivityIndicator color={colors.surface} /> : <Text style={styles.saveText}>Guardar cambios</Text>}
           </Pressable>
+          <Pressable onPress={() => router.push("/bets")} style={styles.myBetsButton}>
+            <Text style={styles.myBetsText}>Mis apuestas</Text>
+          </Pressable>
           <Pressable onPress={handleLogout} style={styles.logoutButton}>
             <Text style={styles.logoutText}>Cerrar sesión</Text>
           </Pressable>
@@ -215,6 +218,17 @@ const styles = StyleSheet.create({
   saveText: {
     color: colors.surface,
     fontWeight: "900",
+  },
+  myBetsButton: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  myBetsText: {
+    color: colors.primary,
+    fontWeight: "800",
   },
   logoutButton: {
     borderRadius: 999,

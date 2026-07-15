@@ -15,6 +15,10 @@ export type BetSelection = {
   title: string;
   meta?: string;
   status?: string;
+  matchId?: string;
+  outcome?: "local" | "empate" | "visitante";
+  odds?: number;
+  stake?: number;
 };
 
 export type AuthAccount = {

@@ -80,6 +80,10 @@ export default function TabsLayout() {
         name="ranking/index"
         options={{ href: null, title: "Ranking", headerLeft: () => <HeaderBackButton /> }}
       />
+      <Tabs.Screen
+        name="bets/index"
+        options={{ href: null, title: "Mis apuestas", headerLeft: () => <HeaderBackButton /> }}
+      />
     </Tabs>
   );
 }

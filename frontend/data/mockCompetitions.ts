@@ -31,6 +31,9 @@ export type MockCompetitionMatch = {
   awayTeamName: string;
   kickoffLabel: string;
   status: string;
+  homeOdds: number;
+  drawOdds: number;
+  awayOdds: number;
 };
 
 export type CompetitionMatchesResult = {
@@ -76,6 +79,9 @@ type RawMockMatch = {
   away_team_name: string;
   kickoff_label: string;
   status: string;
+  home_odds: number;
+  draw_odds: number;
+  away_odds: number;
 };
 
 type RawSnapshot = {
@@ -117,6 +123,9 @@ function toMockMatch(raw: RawMockMatch): MockCompetitionMatch {
     awayTeamName: raw.away_team_name,
     kickoffLabel: raw.kickoff_label,
     status: raw.status,
+    homeOdds: raw.home_odds,
+    drawOdds: raw.draw_odds,
+    awayOdds: raw.away_odds,
   };
 }
 

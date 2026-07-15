@@ -1,17 +1,17 @@
 export const colors = {
-  background: "#0A1440", // deep cobalt base
-  surface: "#132763", // elevated panel tone
-  surfaceSoft: "#1A2F74", // softer inner panel
-  primary: "#27E0A3", // vivid mint accent
-  primaryDark: "#14B889", // darker mint for pressed/contrast
-  text: "#F7FBFF", // near-white text
-  muted: "#A8B4D8", // secondary text
-  border: "#2A418A", // panel border
+  background: "#130B2E", // deep indigo-black base
+  surface: "#1E1447", // elevated panel tone
+  surfaceSoft: "#291B5E", // softer inner panel
+  primary: "#A855F7", // vivid violet accent
+  primaryDark: "#7C3AED", // darker violet for pressed/contrast
+  text: "#F8F5FF", // near-white text, warm to pair with violet
+  muted: "#B0A3D9", // secondary text
+  border: "#3B2A75", // panel border
   success: "#16A34A",
   danger: "#F4506D",
-  accent: "#67B4FF",
+  accent: "#7AA6FF",
   warning: "#FFB84D",
-  highlight: "#6F84FF",
+  highlight: "#8B5CF6",
 };
 
 export const spacing = {
@@ -39,7 +39,7 @@ export const shadows = {
     elevation: 6,
   },
   glow: {
-    shadowColor: "#27E0A3",
+    shadowColor: "#A855F7",
     shadowOpacity: 0.22,
     shadowOffset: { width: 0, height: 0 },
     shadowRadius: 14,

@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { StyleSheet, View, Text, useWindowDimensions, ScrollView, Pressable } from "react-native";
 import { colors, spacing, radii, shadows } from "../theme";
-import { useBetSlip } from "./BetSlipContext";
-import { fontSizes, fontWeights } from "../theme";
+import { BetSlipPanel } from "./BetSlipPanel";
+import { BetSlipSheet } from "./BetSlipSheet";
 import { useLocalSearchParams, usePathname, useRouter } from "expo-router";
 import { fetchMockCompetitions } from "../data/mockCompetitions";
 
@@ -56,10 +56,13 @@ export function DesktopShell({ children }: Props) {
   }
 
   if (!showThreeCols) {
-    return <View style={styles.mobileContainer}>{children}</View>;
+    return (
+      <View style={styles.mobileContainer}>
+        {children}
+        <BetSlipSheet />
+      </View>
+    );
   }
-
-  const { selections, clear } = useBetSlip();
 
   return (
     <View style={styles.container}>
@@ -91,47 +94,7 @@ export function DesktopShell({ children }: Props) {
 
       <View style={styles.rightRail}>
         <Text style={styles.sideTitle}>Tu boleto</Text>
-        <View style={styles.stubBox}>
-          {selections.length === 0 ? (
-            <Text style={styles.emptySlip}>Tu boleto esta vacio. Agrega una cuota para empezar.</Text>
-          ) : (
-            selections.map((s) => (
-              <View key={s.id} style={styles.ticketItem}>
-                <Text style={styles.stubText}>{s.title}</Text>
-                <Text style={styles.ticketMeta}>{s.meta}</Text>
-              </View>
-            ))
-          )}
-        </View>
-        <View style={{ height: 12 }} />
-        <View style={styles.stickyFooter}>
-          <Text style={styles.stubText}>Selecciones: {selections.length}</Text>
-          <View style={{ height: 8 }} />
-          <Text
-            style={styles.cta}
-            onPress={() => {
-              // mock place bet: log and clear
-              // eslint-disable-next-line no-console
-              console.log("Place bet with selections:", selections);
-              clear();
-            }}
-          >
-            REALIZAR APUESTA
-          </Text>
-          <Text
-            style={styles.clear}
-            onPress={() => {
-              clear();
-            }}
-          >
-            Limpiar
-          </Text>
-        </View>
-        <View style={{ height: 12 }} />
-        <Text style={styles.sideTitle}>Promociones</Text>
-        <View style={styles.stubBox}>
-          <Text style={styles.stubText}>Combinada boost +15%</Text>
-        </View>
+        <BetSlipPanel />
       </View>
     </View>
   );
@@ -203,7 +166,7 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   navItemActive: {
-    backgroundColor: "rgba(39,224,163,0.18)",
+    backgroundColor: "rgba(168,85,247,0.18)",
     borderWidth: 1,
     borderColor: colors.primary,
   },
@@ -233,48 +196,6 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     marginBottom: spacing.sm,
     fontSize: 16,
-  },
-  stubBox: {
-    backgroundColor: colors.surfaceSoft,
-    padding: spacing.md,
-    borderRadius: radii.sm,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  stubText: {
-    color: colors.text,
-    fontWeight: "700",
-  },
-  emptySlip: {
-    color: colors.muted,
-    lineHeight: 20,
-  },
-  ticketItem: {
-    marginBottom: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    paddingBottom: 8,
-  },
-  ticketMeta: {
-    color: colors.muted,
-    fontSize: fontSizes.sm,
-  },
-  stickyFooter: {
-    marginTop: spacing.md,
-  },
-  cta: {
-    marginTop: 6,
-    backgroundColor: colors.primary,
-    color: colors.background,
-    paddingVertical: 10,
-    textAlign: "center",
-    borderRadius: radii.sm,
-    fontWeight: fontWeights.bold as any,
-  },
-  clear: {
-    marginTop: 8,
-    color: colors.accent,
-    textAlign: "center",
   },
 });
 

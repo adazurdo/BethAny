@@ -14,6 +14,11 @@ from .account_repository import (
     register_account,
     replace_account_state,
 )
+from .bet_repository import (
+    initialize_repository as initialize_bet_repository,
+    list_placed_bets,
+    place_bet,
+)
 from .mock_dataset_repository import (
     get_competition_source,
     get_snapshot,
@@ -22,6 +27,7 @@ from .mock_dataset_repository import (
 )
 from .mock_dataset_service import sync_competition
 from .models import AccountProfile, BetRecord, SessionState
+from .odds import generate_match_odds
 from .social_repository import (
     ConflictError,
     abort_prediction,
@@ -86,10 +92,25 @@ def _coerce_profile(payload: dict[str, Any]) -> AccountProfile:
     )
 
 
+def _serialize_match(match) -> dict[str, Any]:
+    return {**match.to_dict(), **generate_match_odds(match.id).to_dict()}
+
+
 def _coerce_bets(payload: list[dict[str, Any]]) -> list[BetRecord]:
     bets: list[BetRecord] = []
     for item in payload:
-        bets.append(BetRecord(id=str(item.get("id", "")), title=str(item.get("title", "")), meta=item.get("meta"), status=str(item.get("status", "open"))))
+        bets.append(
+            BetRecord(
+                id=str(item.get("id", "")),
+                title=str(item.get("title", "")),
+                meta=item.get("meta"),
+                status=str(item.get("status", "open")),
+                match_id=item.get("matchId"),
+                outcome=item.get("outcome"),
+                odds=item.get("odds"),
+                stake=item.get("stake"),
+            )
+        )
     return bets
 
 
@@ -173,7 +194,13 @@ class BethanyRequestHandler(BaseHTTPRequestHandler):
             snapshot = get_snapshot(code)
 
             if len(segments) == 3:
-                _json_response(self, HTTPStatus.OK, {"source": source.to_dict(), "snapshot": snapshot.to_dict() if snapshot else None})
+                snapshot_payload = None
+                if snapshot:
+                    snapshot_payload = {
+                        **snapshot.to_dict(),
+                        "matches": [_serialize_match(match) for match in snapshot.matches],
+                    }
+                _json_response(self, HTTPStatus.OK, {"source": source.to_dict(), "snapshot": snapshot_payload})
                 return
 
             if len(segments) == 4 and segments[3] == "matches":
@@ -183,10 +210,17 @@ class BethanyRequestHandler(BaseHTTPRequestHandler):
                     {
                         "source": source.to_dict(),
                         "teams": [team.to_dict() for team in snapshot.teams] if snapshot else [],
-                        "matches": [match.to_dict() for match in snapshot.matches] if snapshot else [],
+                        "matches": [_serialize_match(match) for match in snapshot.matches] if snapshot else [],
                     },
                 )
                 return
+
+        if segments == ["bets", "mine"]:
+            account_id = self._require_session()
+            if account_id is None:
+                return
+            _json_response(self, HTTPStatus.OK, {"bets": list_placed_bets(account_id)})
+            return
 
         _json_response(self, HTTPStatus.NOT_FOUND, {"error": "not found"})
 
@@ -421,16 +455,48 @@ class BethanyRequestHandler(BaseHTTPRequestHandler):
                 _json_response(self, HTTPStatus.NOT_FOUND, {"error": str(exc)})
                 return
 
+            synced_snapshot = result.get("snapshot")
+            snapshot_payload = None
+            if synced_snapshot:
+                snapshot_payload = {
+                    **synced_snapshot.to_dict(),
+                    "matches": [_serialize_match(match) for match in synced_snapshot.matches],
+                }
             payload: dict[str, Any] = {
                 "ok": result["ok"],
                 "source": result["source"].to_dict() if result.get("source") else None,
-                "snapshot": result["snapshot"].to_dict() if result.get("snapshot") else None,
+                "snapshot": snapshot_payload,
             }
             if not result["ok"]:
                 payload["error"] = result["error"]
             # A failed external sync is an expected, handled outcome (fallback to last snapshot),
             # not a server error, so it is still reported with 200 and an "ok" flag in the body.
             _json_response(self, HTTPStatus.OK, payload)
+            return
+
+        if segments == ["bets", "place"]:
+            account_id = self._require_session()
+            if account_id is None:
+                return
+            payload = _read_json(self)
+            selections = payload.get("selections", [])
+            try:
+                placed_bets = place_bet(
+                    account_id,
+                    str(payload.get("betType", "")),
+                    selections if isinstance(selections, list) else [],
+                    payload.get("stake"),
+                )
+            except ValueError as exc:
+                _json_response(self, HTTPStatus.BAD_REQUEST, {"error": str(exc)})
+                return
+            except ConflictError as exc:
+                _json_response(self, HTTPStatus.CONFLICT, {"error": str(exc)})
+                return
+            except LookupError as exc:
+                _json_response(self, HTTPStatus.NOT_FOUND, {"error": str(exc)})
+                return
+            _json_response(self, HTTPStatus.CREATED, {"placedBets": placed_bets})
             return
 
         _json_response(self, HTTPStatus.NOT_FOUND, {"error": "not found"})
@@ -481,6 +547,7 @@ def create_app(host: str = "127.0.0.1", port: int = 8000) -> ThreadingHTTPServer
     initialize_repository()
     initialize_mock_dataset_repository()
     initialize_social_repository()
+    initialize_bet_repository()
     return ThreadingHTTPServer((host, port), BethanyRequestHandler)
 
 

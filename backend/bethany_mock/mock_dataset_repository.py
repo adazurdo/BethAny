@@ -104,6 +104,22 @@ def save_snapshot(code: str, teams: list[TeamSnapshot], matches: list[MockMatch]
     return MockDatasetSnapshot(competition_code=code, version=next_version, generated_at=generated_at, teams=teams, matches=matches)
 
 
+def find_match_by_id(match_id: str) -> tuple[CompetitionSource, MockMatch] | None:
+    """Scan every configured competition's snapshot for a match id.
+
+    Only a handful of competitions are configured (see `CONFIGURED_COMPETITIONS`),
+    so a linear scan is simple and fast enough for this mock stage.
+    """
+    for source in list_competition_sources():
+        snapshot = get_snapshot(source.code)
+        if snapshot is None:
+            continue
+        for match in snapshot.matches:
+            if match.id == match_id:
+                return source, match
+    return None
+
+
 def mark_sync_failure(code: str, error: str) -> CompetitionSource:
     initialize_repository()
     status = "stale" if get_snapshot(code) is not None else "error"

@@ -1,11 +1,25 @@
+import { useRef, useState } from "react";
 import { StyleSheet, Text, View, Animated, Pressable } from "react-native";
 import { colors, radii, spacing, shadows } from "../theme";
 import { useBetSlip } from "./BetSlipContext";
+import { BetOutcome } from "../data/bets";
 import { TeamBadge } from "./TeamBadge";
 
 type TeamInfo = {
   name: string;
   crestUrl?: string;
+};
+
+// Present only for matches backed by a real match id + 1X2 market (football
+// competitions synced from 003-datos-mock). Static non-football mock events
+// have no backend match to validate against, so they keep a disabled "Apostar"
+// affordance instead of joining the real bet slip (see spec Assumptions).
+type MatchOdds = {
+  matchId: string;
+  homeOdds: number;
+  drawOdds: number;
+  awayOdds: number;
+  status: string;
 };
 
 type EventCardProps = {
@@ -17,15 +31,34 @@ type EventCardProps = {
   tone?: string;
   homeTeam?: TeamInfo;
   awayTeam?: TeamInfo;
+  match?: MatchOdds;
 };
 
-export function EventCard({ title, sport, league, startLabel, featured, tone, homeTeam, awayTeam }: EventCardProps) {
-  const { addSelection, removeSelection, selections } = useBetSlip();
+const OUTCOME_LABELS: Record<BetOutcome, string> = {
+  local: "Local",
+  empate: "Empate",
+  visitante: "Visitante",
+};
 
-  const id = title;
-  const isSelected = selections.some((s) => s.id === id);
+const OUTCOME_ODDS_KEYS: Record<BetOutcome, keyof MatchOdds> = {
+  local: "homeOdds",
+  empate: "drawOdds",
+  visitante: "awayOdds",
+};
+
+export function EventCard({ title, sport, league, startLabel, featured, tone, homeTeam, awayTeam, match }: EventCardProps) {
+  const { addSelection, isSelected } = useBetSlip();
 
   const scale = new Animated.Value(1);
+  const isOpenForBetting = match ? match.status.toLowerCase() === "scheduled" || match.status.toLowerCase() === "timed" : false;
+
+  // "Flies" a small copy of the tapped odd up and away, toward where the
+  // boleto lives (the desktop right rail, or the mobile "Ver boleto" access
+  // point), as a lightweight confirmation that the selection was added.
+  // It is decorative only: it never delays or gates the real addSelection call.
+  const [flying, setFlying] = useState<{ key: number; text: string } | null>(null);
+  const flyAnim = useRef(new Animated.Value(0)).current;
+  const flyKey = useRef(0);
 
   function animatePressIn() {
     Animated.spring(scale, { toValue: 0.96, useNativeDriver: true, friction: 7 }).start();
@@ -35,20 +68,30 @@ export function EventCard({ title, sport, league, startLabel, featured, tone, ho
     Animated.spring(scale, { toValue: 1, useNativeDriver: true, friction: 7 }).start();
   }
 
-  function handleAdd() {
-    Animated.sequence([
-      Animated.timing(scale, { toValue: 0.9, duration: 80, useNativeDriver: true }),
-      Animated.timing(scale, { toValue: 1.05, duration: 120, useNativeDriver: true }),
-      Animated.timing(scale, { toValue: 1, duration: 120, useNativeDriver: true }),
-    ]).start(() => addSelection({ id, title, meta: `${league} • ${startLabel}` }));
+  function launchFlyToBoleto(text: string) {
+    flyKey.current += 1;
+    const key = flyKey.current;
+    setFlying({ key, text });
+    flyAnim.setValue(0);
+    Animated.timing(flyAnim, { toValue: 1, duration: 550, useNativeDriver: true }).start(({ finished }) => {
+      if (finished) {
+        setFlying((current) => (current?.key === key ? null : current));
+      }
+    });
   }
 
-  function handleRemove() {
+  function handlePickOutcome(outcome: BetOutcome) {
+    if (!match || !isOpenForBetting) return;
+    const odds = match[OUTCOME_ODDS_KEYS[outcome]] as number;
+    const isAdding = !isSelected(match.matchId, outcome);
     Animated.sequence([
       Animated.timing(scale, { toValue: 0.9, duration: 80, useNativeDriver: true }),
       Animated.timing(scale, { toValue: 1.05, duration: 120, useNativeDriver: true }),
       Animated.timing(scale, { toValue: 1, duration: 120, useNativeDriver: true }),
-    ]).start(() => removeSelection(id));
+    ]).start(() => addSelection({ matchId: match.matchId, title, meta: `${league} • ${startLabel}`, outcome, odds }));
+    if (isAdding) {
+      launchFlyToBoleto(odds.toFixed(2));
+    }
   }
 
   return (
@@ -82,29 +125,60 @@ export function EventCard({ title, sport, league, startLabel, featured, tone, ho
         <Text style={styles.meta}>{league}</Text>
         <Text style={styles.time}>{startLabel}</Text>
       </View>
-      <Animated.View style={[styles.actions, { transform: [{ scale }] }] }>
-        {!isSelected ? (
-          <Pressable
-            onPressIn={animatePressIn}
-            onPressOut={animatePressOut}
-            onPress={handleAdd}
-            style={({ pressed }) => [styles.addButton, pressed ? styles.pressed : null]}
-          >
-            <Text style={styles.addLabel}>Apostar</Text>
-            <Text style={styles.addOdd}>2.15</Text>
-          </Pressable>
-        ) : (
-          <Pressable
-            onPressIn={animatePressIn}
-            onPressOut={animatePressOut}
-            onPress={handleRemove}
-            style={({ pressed }) => [styles.removeButton, pressed ? styles.pressed : null]}
-          >
-            <Text style={styles.removeLabel}>En boleto</Text>
-            <Text style={styles.removeAction}>Quitar</Text>
-          </Pressable>
-        )}
-      </Animated.View>
+
+      {match ? (
+        <Animated.View style={[styles.outcomesRow, { transform: [{ scale }] }]}>
+          {(["local", "empate", "visitante"] as BetOutcome[]).map((outcome) => {
+            const selected = isSelected(match.matchId, outcome);
+            const odds = match[OUTCOME_ODDS_KEYS[outcome]] as number;
+            return (
+              <Pressable
+                key={outcome}
+                onPressIn={animatePressIn}
+                onPressOut={animatePressOut}
+                onPress={() => handlePickOutcome(outcome)}
+                disabled={!isOpenForBetting}
+                style={({ pressed }) => [
+                  styles.outcomeButton,
+                  selected ? styles.outcomeButtonSelected : null,
+                  !isOpenForBetting ? styles.outcomeButtonDisabled : null,
+                  pressed ? styles.pressed : null,
+                ]}
+              >
+                <Text style={[styles.outcomeLabel, selected ? styles.outcomeLabelSelected : null]}>{OUTCOME_LABELS[outcome]}</Text>
+                <Text style={[styles.outcomeOdds, selected ? styles.outcomeLabelSelected : null]}>{isOpenForBetting ? odds.toFixed(2) : "—"}</Text>
+              </Pressable>
+            );
+          })}
+        </Animated.View>
+      ) : (
+        <View style={styles.actions}>
+          <View style={[styles.addButton, styles.addButtonDisabled]}>
+            <Text style={styles.addLabelDisabled}>Apostar</Text>
+            <Text style={styles.addOddDisabled}>Próximamente</Text>
+          </View>
+        </View>
+      )}
+
+      {flying ? (
+        <Animated.View
+          key={flying.key}
+          pointerEvents="none"
+          style={[
+            styles.flyingPill,
+            {
+              opacity: flyAnim.interpolate({ inputRange: [0, 0.7, 1], outputRange: [1, 1, 0] }),
+              transform: [
+                { translateY: flyAnim.interpolate({ inputRange: [0, 1], outputRange: [0, -110] }) },
+                { translateX: flyAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 70] }) },
+                { scale: flyAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 0.4] }) },
+              ],
+            },
+          ]}
+        >
+          <Text style={styles.flyingPillText}>{flying.text}</Text>
+        </Animated.View>
+      ) : null}
     </View>
   );
 }
@@ -117,7 +191,23 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
     borderWidth: 1,
     borderColor: colors.border,
+    overflow: "visible",
     ...shadows.card,
+  },
+  flyingPill: {
+    position: "absolute",
+    bottom: 14,
+    right: spacing.md,
+    backgroundColor: colors.primary,
+    borderRadius: radii.pill,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    ...shadows.glow,
+  },
+  flyingPillText: {
+    color: colors.background,
+    fontWeight: "900",
+    fontSize: 13,
   },
   featured: {
     borderColor: colors.primary,
@@ -192,6 +282,41 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "800",
   },
+  outcomesRow: {
+    marginTop: 10,
+    flexDirection: "row",
+    gap: 6,
+  },
+  outcomeButton: {
+    flex: 1,
+    backgroundColor: colors.surfaceSoft,
+    borderRadius: radii.sm,
+    paddingVertical: 8,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  outcomeButtonSelected: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  outcomeButtonDisabled: {
+    opacity: 0.5,
+  },
+  outcomeLabel: {
+    color: colors.muted,
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  outcomeLabelSelected: {
+    color: colors.background,
+  },
+  outcomeOdds: {
+    color: colors.text,
+    fontWeight: "900",
+    fontSize: 13,
+    marginTop: 2,
+  },
   actions: {
     marginTop: 10,
     flexDirection: "row",
@@ -207,34 +332,20 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     ...shadows.glow,
   },
-  addLabel: {
-    color: colors.background,
+  addButtonDisabled: {
+    backgroundColor: colors.surfaceSoft,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  addLabelDisabled: {
+    color: colors.muted,
     fontWeight: "900",
     letterSpacing: 0.2,
   },
-  addOdd: {
-    color: colors.background,
-    fontWeight: "900",
-  },
-  removeButton: {
-    flex: 1,
-    backgroundColor: "rgba(111,132,255,0.18)",
-    borderRadius: radii.sm,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    borderWidth: 1,
-    borderColor: colors.highlight,
-  },
-  removeLabel: {
-    color: colors.text,
-    fontWeight: "900",
-  },
-  removeAction: {
-    color: colors.accent,
+  addOddDisabled: {
+    color: colors.muted,
     fontWeight: "700",
+    fontSize: 12,
   },
   pressed: {
     opacity: 0.9,
