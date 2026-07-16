@@ -26,7 +26,6 @@ type BetSlipContextValue = {
   selections: Selection[];
   activeTab: BetSlipTab;
   canCombine: boolean;
-  setActiveTab: (tab: BetSlipTab) => void;
   addSelection: (s: NewSelectionInput) => void;
   removeSelection: (matchId: string) => void;
   clear: () => void;
@@ -72,10 +71,12 @@ export function BetSlipProvider({ children }: { children: React.ReactNode }) {
     setSelections(restored);
   }, [account?.accountId]);
 
-  // The Combinada tab only exists with 2+ selections from different matches; drop back to Simple otherwise.
+  // With 2+ selections the boleto can only be placed as a combinada (bet on the
+  // total, not on each leg); with fewer than 2 it can only be Simple.
   useEffect(() => {
-    if (selections.length < 2 && activeTab === "combinada") {
-      setActiveTabState("simple");
+    const forced: BetSlipTab = selections.length >= 2 ? "combinada" : "simple";
+    if (activeTab !== forced) {
+      setActiveTabState(forced);
     }
   }, [selections.length, activeTab]);
 
@@ -139,11 +140,6 @@ export function BetSlipProvider({ children }: { children: React.ReactNode }) {
 
   function setStake(matchId: string, value: string) {
     setStakes((prev) => ({ ...prev, [matchId]: value }));
-  }
-
-  function setActiveTab(tab: BetSlipTab) {
-    if (tab === "combinada" && selections.length < 2) return;
-    setActiveTabState(tab);
   }
 
   const canCombine = selections.length >= 2;
@@ -211,7 +207,6 @@ export function BetSlipProvider({ children }: { children: React.ReactNode }) {
         selections,
         activeTab,
         canCombine,
-        setActiveTab,
         addSelection,
         removeSelection,
         clear,

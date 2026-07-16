@@ -7,6 +7,10 @@ const iconMap = {
   profile: "person-outline",
   social: "people-outline",
   back: "arrow-back-outline",
+  matches: "calendar-outline",
+  ranking: "trophy-outline",
+  bets: "receipt-outline",
+  chevron: "chevron-forward-outline",
 } as const;
 
 type IconName = keyof typeof iconMap;

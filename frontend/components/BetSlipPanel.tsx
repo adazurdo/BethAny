@@ -85,8 +85,6 @@ export function BetSlipPanel() {
   const {
     selections,
     activeTab,
-    canCombine,
-    setActiveTab,
     removeSelection,
     clear,
     stakes,
@@ -142,15 +140,17 @@ export function BetSlipPanel() {
   return (
     <View>
       <Animated.View style={[styles.tabRow, { transform: [{ scale: arrivalPulse }] }]}>
-        <Pressable onPress={() => setActiveTab("simple")} style={[styles.tab, activeTab === "simple" ? styles.tabActive : null]}>
-          <Text style={[styles.tabText, activeTab === "simple" ? styles.tabTextActive : null]}>Simple ({selections.length})</Text>
-        </Pressable>
-        {canCombine ? (
-          <Pressable onPress={() => setActiveTab("combinada")} style={[styles.tab, activeTab === "combinada" ? styles.tabActive : null]}>
-            <Text style={[styles.tabText, activeTab === "combinada" ? styles.tabTextActive : null]}>Combinada</Text>
-          </Pressable>
-        ) : null}
+        <View style={[styles.tab, styles.tabActive]}>
+          <Text style={[styles.tabText, styles.tabTextActive]}>
+            {activeTab === "combinada" ? "Combinada" : `Simple (${selections.length})`}
+          </Text>
+        </View>
       </Animated.View>
+      {activeTab === "combinada" ? (
+        <Text style={styles.combinadaHint}>
+          Con 2 o más selecciones solo puedes apostar al total de la combinada, no a cada parte por separado.
+        </Text>
+      ) : null}
 
       <View style={styles.selectionsBox}>
         {selections.map((selection) => (
@@ -337,6 +337,11 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontWeight: "800",
     fontSize: fontSizes.sm,
+  },
+  combinadaHint: {
+    color: colors.muted,
+    fontSize: fontSizes.sm,
+    marginTop: 4,
   },
   combinadaBox: {
     marginTop: spacing.sm,

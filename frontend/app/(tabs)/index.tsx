@@ -1,83 +1,245 @@
-import { ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useRouter } from "expo-router";
 import { useAuth } from "../../components/AuthContext";
 import { EventCard } from "../../components/EventCard";
 import { SectionCard } from "../../components/SectionCard";
-import { colors, radii, spacing, shadows } from "../../theme";
-import { globalRanking, mockEvents } from "../../data";
+import Icon from "../../components/Icon";
+import { useSocialNotifications } from "../../components/SocialNotificationsContext";
+import { colors, radii, spacing, shadows, fontSizes } from "../../theme";
+import { fetchMyBets, PlacedBet } from "../../data/bets";
+import { CompetitionSource, MockCompetitionMatch, MockTeam, fetchMockCompetitionMatches, fetchMockCompetitions } from "../../data/mockCompetitions";
 import DesktopShell from "../../components/DesktopShell";
 
+const PREFERRED_COMPETITION = "Mundial 2026";
+
 export default function HomeScreen() {
+  const router = useRouter();
   const { account } = useAuth();
-  const { width } = useWindowDimensions();
-  const isDesktop = width >= 900;
-  const featured = mockEvents.filter((event) => event.featured);
-  const displayName = account?.profile.displayName ?? "bethany_fox";
-  const elo = account?.profile.elo ?? 1768;
+  const { friendRequestCount, groupInviteCount, groupsWithUpdate } = useSocialNotifications();
+
+  const [competitions, setCompetitions] = useState<CompetitionSource[] | null>(null);
+  const [featuredCompetition, setFeaturedCompetition] = useState<string | null>(null);
+  const [featuredMatches, setFeaturedMatches] = useState<MockCompetitionMatch[] | null>(null);
+  const [featuredTeams, setFeaturedTeams] = useState<Map<string, MockTeam>>(new Map());
+  const [matchesLoading, setMatchesLoading] = useState(true);
+
+  const [bets, setBets] = useState<PlacedBet[] | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      setMatchesLoading(true);
+      try {
+        const sources = await fetchMockCompetitions();
+        if (cancelled) return;
+        setCompetitions(sources);
+        const preferred = sources.find((s) => s.displayName === PREFERRED_COMPETITION) ?? sources[0] ?? null;
+        if (!preferred) {
+          setFeaturedCompetition(null);
+          setFeaturedMatches([]);
+          return;
+        }
+        setFeaturedCompetition(preferred.displayName);
+        const result = await fetchMockCompetitionMatches(preferred.code);
+        if (cancelled) return;
+        setFeaturedMatches(result.matches);
+        setFeaturedTeams(new Map(result.teams.map((team) => [team.id, team])));
+      } catch {
+        if (!cancelled) {
+          setCompetitions([]);
+          setFeaturedMatches([]);
+        }
+      } finally {
+        if (!cancelled) setMatchesLoading(false);
+      }
+    }
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchMyBets()
+      .then((result) => {
+        if (!cancelled) setBets(result);
+      })
+      .catch(() => {
+        if (!cancelled) setBets([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const openFeaturedMatches = useMemo(() => {
+    return (featuredMatches ?? [])
+      .filter((match) => match.status.toLowerCase() === "scheduled" || match.status.toLowerCase() === "timed")
+      .slice(0, 4);
+  }, [featuredMatches]);
+
+  const betsSummary = useMemo(() => {
+    if (!bets) return null;
+    return {
+      count: bets.length,
+      totalStake: bets.reduce((acc, bet) => acc + bet.stake, 0),
+      totalPotential: bets.reduce((acc, bet) => acc + bet.potentialWinnings, 0),
+    };
+  }, [bets]);
+
+  const displayName = account?.profile.displayName ?? "";
+  const elo = account?.profile.elo ?? 0;
+  const rankLabel = account?.profile.rankLabel || "Sin rango asignado";
+  const hasSocialActivity = friendRequestCount > 0 || groupInviteCount > 0 || groupsWithUpdate.length > 0;
+
+  function goToCompetition(label: string) {
+    router.push({ pathname: "/matches", params: { competition: label } });
+  }
 
   const content = (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <View style={styles.hero}>
-        <View style={styles.heroHeader}>
-          <Text style={styles.kicker}>Mundial 2026</Text>
-          <Text style={styles.liveChip}>En directo</Text>
-        </View>
-        <Text style={styles.title}>Mercados calientes y picks en vivo</Text>
-        <Text style={styles.subtitle}>Bienvenido, {displayName}. Cuotas listas, ritmo rapido y ranking siempre visible.</Text>
+        <Text style={styles.kicker}>Bienvenido</Text>
+        <Text style={styles.title}>{displayName}</Text>
+        <Text style={styles.subtitle}>{rankLabel}</Text>
         <View style={styles.heroStatsRow}>
           <View style={styles.statCard}>
             <Text style={styles.statLabel}>Elo actual</Text>
             <Text style={styles.statValue}>{elo}</Text>
           </View>
           <View style={styles.statCard}>
-            <Text style={styles.statLabel}>Racha</Text>
-            <Text style={styles.statValue}>+4</Text>
+            <Text style={styles.statLabel}>Apuestas realizadas</Text>
+            <Text style={styles.statValue}>{betsSummary ? betsSummary.count : "—"}</Text>
           </View>
         </View>
       </View>
 
-      <View style={styles.marketTabs}>
-        <Text style={[styles.marketTab, styles.marketTabActive]}>Goleadores</Text>
-        <Text style={styles.marketTab}>Partidos</Text>
-        <Text style={styles.marketTab}>Equipos</Text>
-        <Text style={styles.marketTab}>Especiales</Text>
-      </View>
+      {competitions && competitions.length > 0 ? (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.competitionsRow}>
+          {competitions.map((competition) => (
+            <Pressable
+              key={competition.code}
+              onPress={() => goToCompetition(competition.displayName)}
+              style={({ pressed }) => [styles.competitionChip, pressed ? styles.pressed : null]}
+            >
+              <Icon glyph="matches" size={14} color={colors.primary} />
+              <Text style={styles.competitionChipText}>{competition.displayName}</Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+      ) : null}
 
-      <SectionCard title="Featured events" subtitle="Top stories from the current moment">
+      <SectionCard
+        title="Próximos partidos"
+        subtitle={featuredCompetition ? `${featuredCompetition} • listos para apostar` : "Cargando competiciones..."}
+      >
         <View style={styles.grid}>
-          {featured.length > 0 ? featured.map((event, i) => <EventCard key={event.id} {...event} />) : <EmptyState />}
+          {matchesLoading ? (
+            <ActivityIndicator color={colors.primary} />
+          ) : openFeaturedMatches.length > 0 ? (
+            openFeaturedMatches.map((match) => (
+              <EventCard
+                key={match.id}
+                title={`${match.homeTeamName} vs ${match.awayTeamName}`}
+                sport="Football"
+                league={featuredCompetition ?? ""}
+                startLabel={match.kickoffLabel}
+                homeTeam={{ name: match.homeTeamName, crestUrl: featuredTeams.get(match.homeTeamId)?.crestUrl }}
+                awayTeam={{ name: match.awayTeamName, crestUrl: featuredTeams.get(match.awayTeamId)?.crestUrl }}
+                match={{
+                  matchId: match.id,
+                  homeOdds: match.homeOdds,
+                  drawOdds: match.drawOdds,
+                  awayOdds: match.awayOdds,
+                  status: match.status,
+                }}
+              />
+            ))
+          ) : (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyTitle}>No hay partidos abiertos ahora mismo</Text>
+              <Text style={styles.emptyText}>Explora otras competiciones para ver más mercados.</Text>
+            </View>
+          )}
         </View>
+        {featuredCompetition ? (
+          <FooterLink label="Ver todos los partidos" onPress={() => goToCompetition(featuredCompetition)} />
+        ) : null}
       </SectionCard>
 
-      <SectionCard title="Global ranking" subtitle="Embedded inside Home for the MVP">
-        <View style={styles.rankingList}>
-          {globalRanking.map((entry) => (
-            <View key={entry.id} style={styles.rankingRow}>
-              <Text style={styles.rankingPosition}>#{entry.position}</Text>
-              <View style={styles.rankingTextBlock}>
-                <Text style={styles.rankingName}>{entry.displayName}</Text>
-                <Text style={styles.rankingMeta}>{entry.badge}</Text>
-              </View>
-              <Text style={styles.rankingScore}>{entry.elo}</Text>
-            </View>
-          ))}
+      <SectionCard title="Tus apuestas" subtitle="Resumen de tu actividad reciente">
+        {!betsSummary ? (
+          <ActivityIndicator color={colors.primary} />
+        ) : betsSummary.count === 0 ? (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyTitle}>Todavía no has realizado ninguna apuesta</Text>
+            <Text style={styles.emptyText}>Elige un resultado en "Próximos partidos" para empezar tu boleto.</Text>
+          </View>
+        ) : (
+          <View style={styles.summaryRows}>
+            <SummaryRow label="Apuestas realizadas" value={String(betsSummary.count)} />
+            <SummaryRow label="Importe total apostado" value={`${betsSummary.totalStake.toFixed(2)} €`} />
+            <SummaryRow label="Ganancia potencial total" value={`${betsSummary.totalPotential.toFixed(2)} €`} highlight />
+          </View>
+        )}
+        <FooterLink label="Ver todas mis apuestas" onPress={() => router.push("/bets")} />
+      </SectionCard>
+
+      <SectionCard title="Tu progreso" subtitle="Elo y ranking global">
+        <View style={styles.progressRow}>
+          <View>
+            <Text style={styles.progressElo}>{elo}</Text>
+            <Text style={styles.progressLabel}>Elo</Text>
+          </View>
+          <Text style={styles.progressRank}>{rankLabel}</Text>
         </View>
+        <FooterLink label="Ver ranking completo" onPress={() => router.push("/ranking")} />
+      </SectionCard>
+
+      <SectionCard title="Actividad social" subtitle="Amigos y grupos">
+        {hasSocialActivity ? (
+          <View style={styles.summaryRows}>
+            {friendRequestCount > 0 ? (
+              <SummaryRow label="Solicitudes de amistad pendientes" value={String(friendRequestCount)} highlight />
+            ) : null}
+            {groupInviteCount > 0 ? (
+              <SummaryRow label="Invitaciones a grupos" value={String(groupInviteCount)} highlight />
+            ) : null}
+            {groupsWithUpdate.length > 0 ? (
+              <SummaryRow label="Grupos con novedades" value={String(groupsWithUpdate.length)} highlight />
+            ) : null}
+          </View>
+        ) : (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyTitle}>Estás al día</Text>
+            <Text style={styles.emptyText}>No tienes solicitudes ni invitaciones pendientes.</Text>
+          </View>
+        )}
+        <FooterLink label="Ir a Social" onPress={() => router.push("/social")} />
       </SectionCard>
     </ScrollView>
   );
 
-  if (isDesktop) {
-    return <DesktopShell>{content}</DesktopShell>;
-  }
-
-  return content;
+  return <DesktopShell>{content}</DesktopShell>;
 }
 
-function EmptyState() {
+function SummaryRow({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
   return (
-    <View style={styles.emptyState}>
-      <Text style={styles.emptyTitle}>No events right now</Text>
-      <Text style={styles.emptyText}>The prototype would still show an empty-state card here.</Text>
+    <View style={styles.summaryRow}>
+      <Text style={styles.summaryLabel}>{label}</Text>
+      <Text style={[styles.summaryValue, highlight ? styles.summaryValueHighlight : null]}>{value}</Text>
     </View>
+  );
+}
+
+function FooterLink({ label, onPress }: { label: string; onPress: () => void }) {
+  return (
+    <Pressable onPress={onPress} style={({ pressed }) => [styles.footerLink, pressed ? styles.pressed : null]}>
+      <Text style={styles.footerLinkText}>{label}</Text>
+      <Icon glyph="chevron" size={14} color={colors.primary} />
+    </Pressable>
   );
 }
 
@@ -100,11 +262,6 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     ...shadows.card,
   },
-  heroHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
   kicker: {
     color: colors.accent,
     fontWeight: "900",
@@ -112,15 +269,10 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
     fontSize: 12,
   },
-  liveChip: {
-    color: colors.warning,
-    fontWeight: "900",
-    fontSize: 12,
-  },
   title: {
     color: colors.text,
-    fontSize: 31,
-    lineHeight: 36,
+    fontSize: 28,
+    lineHeight: 32,
     fontWeight: "900",
   },
   subtitle: {
@@ -150,26 +302,28 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     fontSize: 22,
   },
-  marketTabs: {
-    flexDirection: "row",
-    flexWrap: "wrap",
+  competitionsRow: {
     gap: spacing.sm,
+    paddingRight: spacing.lg,
   },
-  marketTab: {
-    color: colors.text,
+  competitionChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
     backgroundColor: colors.surfaceSoft,
     borderWidth: 1,
     borderColor: colors.border,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
     borderRadius: radii.pill,
-    fontSize: 12,
-    fontWeight: "800",
   },
-  marketTabActive: {
-    backgroundColor: "rgba(168,85,247,0.2)",
-    borderColor: colors.primary,
-    color: colors.primary,
+  competitionChipText: {
+    color: colors.text,
+    fontWeight: "800",
+    fontSize: 13,
+  },
+  pressed: {
+    opacity: 0.85,
   },
   grid: {
     gap: spacing.sm,
@@ -190,40 +344,57 @@ const styles = StyleSheet.create({
     color: colors.muted,
     marginTop: 4,
   },
-  rankingList: {
-    gap: spacing.sm,
+  summaryRows: {
+    gap: 4,
   },
-  rankingRow: {
+  summaryRow: {
     flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 12,
-    paddingHorizontal: 10,
-    borderRadius: radii.sm,
-    backgroundColor: colors.surfaceSoft,
-    borderWidth: 1,
-    borderColor: colors.border,
+    justifyContent: "space-between",
+    paddingVertical: 6,
     borderBottomWidth: 1,
-    borderBottomColor: "transparent",
+    borderBottomColor: colors.border,
   },
-  rankingPosition: {
-    width: 42,
-    fontWeight: "900",
-    color: colors.primary,
+  summaryLabel: {
+    color: colors.muted,
   },
-  rankingTextBlock: {
-    flex: 1,
-    gap: 2,
-  },
-  rankingName: {
+  summaryValue: {
     color: colors.text,
     fontWeight: "800",
   },
-  rankingMeta: {
-    color: colors.muted,
-    fontSize: 13,
-  },
-  rankingScore: {
-    color: colors.text,
+  summaryValueHighlight: {
+    color: colors.accent,
     fontWeight: "900",
+  },
+  progressRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  progressElo: {
+    color: colors.primary,
+    fontWeight: "900",
+    fontSize: 32,
+  },
+  progressLabel: {
+    color: colors.muted,
+    fontSize: 12,
+  },
+  progressRank: {
+    color: colors.text,
+    fontWeight: "800",
+    fontSize: fontSizes.md,
+  },
+  footerLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    marginTop: spacing.xs,
+    paddingVertical: 6,
+  },
+  footerLinkText: {
+    color: colors.primary,
+    fontWeight: "800",
+    fontSize: 13,
   },
 });

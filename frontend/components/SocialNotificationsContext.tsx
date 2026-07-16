@@ -6,6 +6,8 @@ type SocialNotificationsValue = {
   hasFriendRequests: boolean;
   hasGroupInvites: boolean;
   hasNotifications: boolean;
+  friendRequestCount: number;
+  groupInviteCount: number;
   groupsWithUpdate: string[];
   hasGroupUpdate: (groupId: string) => boolean;
   refresh: () => Promise<void>;
@@ -59,6 +61,8 @@ export function SocialNotificationsProvider({ children }: { children: React.Reac
       hasFriendRequests: friendRequestCount > 0,
       hasGroupInvites: groupInviteCount > 0,
       hasNotifications: friendRequestCount > 0 || groupInviteCount > 0 || groupsWithUpdate.length > 0,
+      friendRequestCount,
+      groupInviteCount,
       groupsWithUpdate,
       hasGroupUpdate: (groupId: string) => groupsWithUpdate.includes(groupId),
       refresh,
