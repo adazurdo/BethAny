@@ -81,7 +81,7 @@ As a freshly registered account with no bets, open "Mis apuestas".
 
 ## Follow-ups (deferred, not part of this feature)
 
-- No bet settlement/resolution against real match results (all placed bets stay `realizada`).
-- No virtual wallet/balance — stakes remain illustrative only.
+- ~~No bet settlement/resolution against real match results (all placed bets stay `realizada`).~~ Implemented by `006-elo` via a deterministic simulated match result (see `specs/006-elo/quickstart.md`).
+- ~~No virtual wallet/balance — stakes remain illustrative only.~~ Implemented by `006-elo`: stake is debited on placement, potential winnings credited on a winning settlement.
 - No "Sistema" tab and no markets beyond 1X2.
 - No abuse prevention for rapid/mass bet creation.

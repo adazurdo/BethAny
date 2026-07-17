@@ -4,6 +4,8 @@
 
 The feature adds a real 1X2 betting market on top of the football matches already modeled in `003-datos-mock`, extends the existing draft boleto (`BetSlipContext` / `account.bets`, originally specced as `BetRecord` in `002-base-de-datos`) with match/outcome/odds data, and introduces a new server-owned `PlacedBet` aggregate for bets that have actually been placed (simple or combinada). Odds are never stored; they are always derived from a match's id via a pure function, so nothing here introduces a schema migration for existing data.
 
+**Note (superseded by `006-elo`, 2026-07-17)**: `PlacedBet.stake` is no longer "illustrative only" and `status` is no longer fixed at `"realizada"` — see `specs/006-elo/data-model.md` for the wallet debit/credit and the `ganada`/`perdida` settlement states added on top of the `PlacedBet` entity described below.
+
 ## Entities
 
 ### MatchOdds *(derived, not stored)*
@@ -44,10 +46,11 @@ An apuesta already placed by an account — either `simple` (one selection) or `
 - `id`
 - `account_id`: owning account
 - `bet_type`: `simple` or `combinada`
-- `stake`: amount entered by the user (illustrative only — no wallet is debited)
-- `combined_odds`: the selection's own odds for a `simple` bet, or the sum of every selection's odds for a `combinada` (a deliberate simplification vs. a real bookmaker's product, since no real money is at stake — see `spec.md` Amendment, 2026-07-16)
-- `potential_winnings`: `stake * combined_odds`, rounded to 2 decimals
-- `status`: fixed `"realizada"` in this phase (no settlement/resolution against real results)
+- `stake`: amount entered by the user (as of `006-elo`, debited from the account's coins balance on placement — no longer purely illustrative)
+- `combined_odds`: the selection's own odds for a `simple` bet, or the sum of every selection's odds for a `combinada` (a deliberate simplification vs. a real bookmaker's product — see `spec.md` Amendment, 2026-07-16)
+- `potential_winnings`: `stake * combined_odds`, rounded to 2 decimals; credited to the coins balance on a winning settlement (`006-elo`)
+- `status`: `"realizada"` (pending) until settled, then `"ganada"` or `"perdida"` (`006-elo` added the settlement step; see `specs/006-elo/data-model.md`)
+- `settled_at`: timestamp of settlement, `None` while pending (`006-elo`)
 - `created_at`
 
 **Rules**:

@@ -159,7 +159,34 @@ def initialize_database() -> None:
                 FOREIGN KEY(account_id) REFERENCES accounts(id) ON DELETE CASCADE
             )
         """)
+        connection.execute("""
+            CREATE TABLE IF NOT EXISTS elo_milestone_awards (
+                id TEXT PRIMARY KEY,
+                account_id TEXT NOT NULL,
+                tier INTEGER NOT NULL,
+                bonus_coins INTEGER NOT NULL,
+                awarded_at TEXT NOT NULL,
+                FOREIGN KEY(account_id) REFERENCES accounts(id) ON DELETE CASCADE
+            )
+        """)
+        # `placed_bets` was created above without `status`/`settled_at` columns (005-combinada
+        # only ever relied on the `PlacedBet` dataclass's in-memory default for status, never
+        # persisting or querying it) — both are added here for the settlement work in 006-elo.
+        _ensure_column(connection, "placed_bets", "status", "TEXT NOT NULL DEFAULT 'realizada'")
+        _ensure_column(connection, "placed_bets", "settled_at", "TEXT")
         connection.commit()
+
+
+def _ensure_column(connection: sqlite3.Connection, table: str, column: str, column_type: str) -> None:
+    """Add `column` to `table` if it doesn't exist yet.
+
+    sqlite has no `ADD COLUMN IF NOT EXISTS`, and `CREATE TABLE IF NOT EXISTS`
+    (used everywhere else in this file) never alters an already-existing table —
+    so a real schema change here needs this explicit, idempotent migration.
+    """
+    existing_columns = {row["name"] for row in connection.execute(f"PRAGMA table_info({table})")}
+    if column not in existing_columns:
+        connection.execute(f"ALTER TABLE {table} ADD COLUMN {column} {column_type}")
 
 
 def dumps(value: Any) -> str:

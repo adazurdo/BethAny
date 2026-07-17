@@ -8,6 +8,7 @@ import { ProfileSummary } from "../../components/ProfileSummary";
 import { SectionCard } from "../../components/SectionCard";
 import { colors, radii, spacing } from "../../theme";
 import { globalRanking, mockProfile } from "../../data";
+import { ackEloMilestones } from "../../data/auth";
 
 type PickedImage = {
   uri: string;
@@ -16,22 +17,33 @@ type PickedImage = {
 };
 
 export default function ProfileScreen() {
-  const { account, logout, updateAccount } = useAuth();
+  const { account, logout, updateAccount, refreshAccount } = useAuth();
   const profile = account?.profile ?? mockProfile;
   const [displayName, setDisplayName] = useState(profile.displayName);
   const [bio, setBio] = useState(profile.bio);
-  const [elo, setElo] = useState(String(profile.elo));
   const [saving, setSaving] = useState(false);
   const [changingAvatar, setChangingAvatar] = useState(false);
   const [avatarError, setAvatarError] = useState<string | null>(null);
   const [pickedImage, setPickedImage] = useState<PickedImage | null>(null);
   const [cropModalVisible, setCropModalVisible] = useState(false);
+  const [dismissingMilestones, setDismissingMilestones] = useState(false);
 
   useEffect(() => {
     setDisplayName(profile.displayName);
     setBio(profile.bio);
-    setElo(String(profile.elo));
-  }, [profile.displayName, profile.bio, profile.elo]);
+  }, [profile.displayName, profile.bio]);
+
+  const unseenMilestones = account?.unseenEloMilestones ?? [];
+
+  async function handleDismissMilestones() {
+    setDismissingMilestones(true);
+    try {
+      await ackEloMilestones();
+      await refreshAccount();
+    } finally {
+      setDismissingMilestones(false);
+    }
+  }
 
   async function handleSave() {
     if (!account) return;
@@ -42,7 +54,6 @@ export default function ProfileScreen() {
           ...profile,
           displayName: displayName.trim() || profile.displayName,
           bio: bio.trim() || profile.bio,
-          elo: Number.isFinite(Number(elo)) ? Number(elo) : profile.elo,
         },
       });
     } finally {
@@ -128,6 +139,21 @@ export default function ProfileScreen() {
       />
       {avatarError ? <Text style={styles.avatarErrorText}>{avatarError}</Text> : null}
 
+      {unseenMilestones.map((milestone) => (
+        <View key={milestone.tier} style={styles.milestoneBanner}>
+          <Text style={styles.milestoneText}>
+            ¡Has alcanzado {milestone.tier} de Elo! +{milestone.bonusCoins} coins
+          </Text>
+          <Pressable onPress={handleDismissMilestones} disabled={dismissingMilestones} style={styles.milestoneDismiss}>
+            {dismissingMilestones ? (
+              <ActivityIndicator color={colors.surface} size="small" />
+            ) : (
+              <Text style={styles.milestoneDismissText}>Entendido</Text>
+            )}
+          </Pressable>
+        </View>
+      ))}
+
       <AvatarCropModal
         visible={cropModalVisible}
         imageUri={pickedImage?.uri ?? null}
@@ -141,7 +167,6 @@ export default function ProfileScreen() {
         <View style={styles.form}>
           <TextInput value={displayName} onChangeText={setDisplayName} placeholder="Display name" placeholderTextColor={colors.muted} style={styles.input} />
           <TextInput value={bio} onChangeText={setBio} placeholder="Bio" placeholderTextColor={colors.muted} style={[styles.input, styles.multiline]} multiline />
-          <TextInput value={elo} onChangeText={setElo} placeholder="Elo" placeholderTextColor={colors.muted} style={styles.input} keyboardType="number-pad" />
           <Pressable onPress={handleSave} style={styles.saveButton} disabled={saving}>
             {saving ? <ActivityIndicator color={colors.surface} /> : <Text style={styles.saveText}>Guardar cambios</Text>}
           </Pressable>
@@ -181,6 +206,33 @@ const styles = StyleSheet.create({
     color: colors.danger,
     fontSize: 13,
     textAlign: "center",
+  },
+  milestoneBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.sm,
+    backgroundColor: colors.primary,
+    borderRadius: radii.md,
+    padding: spacing.md,
+  },
+  milestoneText: {
+    flex: 1,
+    color: colors.surface,
+    fontWeight: "800",
+  },
+  milestoneDismiss: {
+    backgroundColor: colors.primaryDark,
+    borderRadius: 999,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 8,
+    minWidth: 88,
+    alignItems: "center",
+  },
+  milestoneDismissText: {
+    color: colors.surface,
+    fontWeight: "800",
+    fontSize: 12,
   },
   content: {
     padding: spacing.lg,

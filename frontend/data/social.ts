@@ -73,6 +73,7 @@ export type GroupRankingEntry = {
   accountId: string;
   displayName: string;
   correctCount: number;
+  elo: number;
 };
 
 export type GroupDetail = {

@@ -1,4 +1,5 @@
 import { StyleSheet, Text, View } from "react-native";
+import { EloPill } from "./EconomyBadges";
 import { colors, spacing } from "../theme";
 import { GroupRankingEntry } from "../data/social";
 
@@ -17,9 +18,12 @@ export function GroupRanking({ ranking }: GroupRankingProps) {
         <View key={entry.accountId} style={styles.row}>
           <View style={styles.leading}>
             <Text style={styles.position}>{index + 1}</Text>
-            <Text style={styles.displayName}>{entry.displayName}</Text>
+            <Text style={styles.displayName} numberOfLines={1}>
+              {entry.displayName}
+            </Text>
+            <EloPill elo={entry.elo} />
           </View>
-          <Text style={styles.correctCount}>
+          <Text style={styles.correctCount} numberOfLines={1}>
             {entry.correctCount} {entry.correctCount === 1 ? "acierto" : "aciertos"}
           </Text>
         </View>
@@ -39,9 +43,11 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xs,
   },
   leading: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
+    marginRight: spacing.sm,
   },
   position: {
     color: colors.muted,
@@ -49,10 +55,12 @@ const styles = StyleSheet.create({
     width: 18,
   },
   displayName: {
+    flexShrink: 1,
     color: colors.text,
     fontWeight: "700",
   },
   correctCount: {
+    flexShrink: 0,
     color: colors.accent,
     fontWeight: "800",
     fontSize: 12,

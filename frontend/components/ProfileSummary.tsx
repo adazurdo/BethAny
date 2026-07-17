@@ -1,4 +1,5 @@
 import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { EconomyBadges } from "./EconomyBadges";
 import { colors, radii, spacing } from "../theme";
 
 type ProfileSummaryProps = {
@@ -6,6 +7,7 @@ type ProfileSummaryProps = {
   identifier?: string;
   avatarUrl: string;
   elo: number;
+  coins: number;
   rankLabel: string;
   winRate: string;
   streak: string;
@@ -14,11 +16,16 @@ type ProfileSummaryProps = {
   changingAvatar?: boolean;
 };
 
+// Elo and coins are the two numbers this feature (006-elo) most wants a user to notice at a
+// glance, so they get their own prominent EconomyBadges row instead of blending into the
+// small secondary stat row below (win rate / streak).
+
 export function ProfileSummary({
   displayName,
   identifier,
   avatarUrl,
   elo,
+  coins,
   rankLabel,
   winRate,
   streak,
@@ -55,8 +62,8 @@ export function ProfileSummary({
         <Text style={styles.label}>{rankLabel}</Text>
         <Text style={styles.bio}>{bio}</Text>
       </View>
+      <EconomyBadges elo={elo} coins={coins} size="lg" />
       <View style={styles.statsRow}>
-        <Stat label="Elo" value={String(elo)} />
         <Stat label="Win rate" value={winRate} />
         <Stat label="Streak" value={streak} />
       </View>

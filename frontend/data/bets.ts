@@ -17,6 +17,7 @@ export type PlacedBet = {
   potentialWinnings: number;
   status: string;
   createdAt: string;
+  settledAt: string | null;
   selections: PlacedBetSelection[];
 };
 

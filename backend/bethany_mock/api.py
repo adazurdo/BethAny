@@ -31,6 +31,7 @@ from .odds import generate_match_odds
 from .social_repository import (
     ConflictError,
     abort_prediction,
+    ack_elo_milestones,
     add_prediction,
     cast_vote,
     create_group,
@@ -40,6 +41,7 @@ from .social_repository import (
     invite_member,
     list_groups_for_account,
     list_incoming_group_invites,
+    list_unseen_elo_milestones,
     mark_group_seen,
     remove_friend,
     resolve_prediction,
@@ -73,7 +75,7 @@ def _read_json(handler: BaseHTTPRequestHandler) -> dict[str, Any]:
 
 
 def _serialize_account(account) -> dict[str, Any]:
-    return account.to_dict()
+    return {**account.to_dict(), "unseenEloMilestones": list_unseen_elo_milestones(account.id)}
 
 
 def _split_path(path: str) -> list[str]:
@@ -262,6 +264,14 @@ class BethanyRequestHandler(BaseHTTPRequestHandler):
             return
 
         segments = _split_path(self.path)
+
+        if segments == ["account", "me", "milestones", "ack"]:
+            account_id = self._require_session()
+            if account_id is None:
+                return
+            ack_elo_milestones(account_id)
+            _json_response(self, HTTPStatus.OK, {"ok": True})
+            return
 
         if segments == ["social", "friends"]:
             account_id = self._require_session()
@@ -517,7 +527,17 @@ class BethanyRequestHandler(BaseHTTPRequestHandler):
             return
 
         if "profile" in payload and isinstance(payload["profile"], dict):
-            account.profile = _coerce_profile(payload["profile"])
+            server_profile = account.profile
+            new_profile = _coerce_profile(payload["profile"])
+            # elo, coins, and the other economy fields are server-computed only (FR-014):
+            # whatever the client sends for them is ignored, the previously persisted
+            # values always win.
+            new_profile.elo = server_profile.elo
+            new_profile.coins = server_profile.coins
+            new_profile.coins_last_grant_at = server_profile.coins_last_grant_at
+            new_profile.predictions_resolved = server_profile.predictions_resolved
+            new_profile.highest_elo_milestone = server_profile.highest_elo_milestone
+            account.profile = new_profile
         if "bets" in payload and isinstance(payload["bets"], list):
             account.bets = _coerce_bets(payload["bets"])
 

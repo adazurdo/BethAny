@@ -43,6 +43,14 @@ type BetSlipContextValue = {
 
 const OUTCOMES: BetOutcome[] = ["local", "empate", "visitante"];
 
+function describePlaceError(err: unknown): string {
+  const message = err instanceof Error ? err.message : "";
+  if (message === "insufficient coins balance") {
+    return "No tienes coins suficientes para esta apuesta.";
+  }
+  return message || "No se pudo realizar la apuesta.";
+}
+
 const BetSlipContext = createContext<BetSlipContextValue | undefined>(undefined);
 
 export function useBetSlip() {
@@ -167,7 +175,7 @@ export function BetSlipProvider({ children }: { children: React.ReactNode }) {
       clear();
       return true;
     } catch (err) {
-      setPlaceError(err instanceof Error ? err.message : "No se pudo realizar la apuesta.");
+      setPlaceError(describePlaceError(err));
       return false;
     } finally {
       setPlacing(false);
@@ -194,7 +202,7 @@ export function BetSlipProvider({ children }: { children: React.ReactNode }) {
       clear();
       return true;
     } catch (err) {
-      setPlaceError(err instanceof Error ? err.message : "No se pudo realizar la apuesta.");
+      setPlaceError(describePlaceError(err));
       return false;
     } finally {
       setPlacing(false);

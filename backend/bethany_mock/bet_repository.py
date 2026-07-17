@@ -1,20 +1,51 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
+from .account_repository import get_account_by_id, save_account_state
 from .database import dumps, get_connection, initialize_database, loads
+from .match_results import generate_match_result
 from .mock_dataset_repository import find_match_by_id
 from .models import MockMatch, PlacedBet, PlacedBetSelection
 from .odds import generate_match_odds, is_open_for_betting
 from .social_repository import ConflictError
 
 OUTCOMES = {"local", "empate", "visitante"}
+SETTLEMENT_DELAY_MINUTES = 90
 
 
 def _utcnow() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _parse_timestamp(value: str) -> datetime:
+    parsed = datetime.fromisoformat(value)
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed
+
+
+def _debit_coins(account_id: str, amount: float) -> None:
+    account = get_account_by_id(account_id)
+    if account is None:
+        raise LookupError("account not found")
+    # coins is a whole-number game currency; stakes (inherited from 005-combinada) may carry
+    # decimals, so the debited/credited amount is rounded to the nearest coin at this boundary.
+    rounded_amount = round(amount)
+    if account.profile.coins < rounded_amount:
+        raise ValueError("insufficient coins balance")
+    account.profile.coins -= rounded_amount
+    save_account_state(account)
+
+
+def _credit_coins(account_id: str, amount: float) -> None:
+    account = get_account_by_id(account_id)
+    if account is None:
+        return
+    account.profile.coins += round(amount)
+    save_account_state(account)
 
 
 def _new_id(prefix: str) -> str:
@@ -80,6 +111,7 @@ def serialize_placed_bet(bet: PlacedBet) -> dict[str, Any]:
         "potentialWinnings": bet.potential_winnings,
         "status": bet.status,
         "createdAt": bet.created_at,
+        "settledAt": bet.settled_at,
         "selections": [_serialize_selection(selection) for selection in bet.selections],
     }
 
@@ -158,22 +190,62 @@ def place_bet(
             placed_selections.append(
                 PlacedBetSelection(match_id=match.id, match_label=label, outcome=outcome, odds=odds)
             )
+        _debit_coins(account_id, shared_stake)
         bet = _persist(account_id, "combinada", shared_stake, combined_odds, placed_selections)
         return [serialize_placed_bet(bet)]
 
-    # simple: one independent PlacedBet per selection, each with its own stake
+    # simple: one independent PlacedBet per selection, each with its own stake.
+    # The total debit is checked and applied once, before any selection is persisted, so a
+    # multi-selection "simple" batch can never leave the account partially charged.
+    selection_stakes = [
+        _coerce_stake(selections_payload[index].get("stake", stake)) for index in range(len(resolved))
+    ]
+    _debit_coins(account_id, sum(selection_stakes))
+
     placed: list[dict[str, Any]] = []
     for index, (match, outcome, odds, label) in enumerate(resolved):
-        raw_stake = selections_payload[index].get("stake", stake)
-        selection_stake = _coerce_stake(raw_stake)
         selection = PlacedBetSelection(match_id=match.id, match_label=label, outcome=outcome, odds=odds)
-        bet = _persist(account_id, "simple", selection_stake, odds, [selection])
+        bet = _persist(account_id, "simple", selection_stakes[index], odds, [selection])
         placed.append(serialize_placed_bet(bet))
     return placed
 
 
+def _settle_due_bets(account_id: str) -> None:
+    """Lazily settle every pending bet of this account whose match is old enough to be
+    considered finished (`created_at + SETTLEMENT_DELAY_MINUTES`), against a deterministic
+    simulated result — no real match result exists anywhere in this prototype (see
+    `specs/006-elo/research.md` Decisions 8 and 9).
+    """
+    now = datetime.now(timezone.utc)
+    with get_connection() as connection:
+        rows = connection.execute(
+            "SELECT * FROM placed_bets WHERE account_id = ? AND status = 'realizada'",
+            (account_id,),
+        ).fetchall()
+
+    for row in rows:
+        if now < _parse_timestamp(row["created_at"]) + timedelta(minutes=SETTLEMENT_DELAY_MINUTES):
+            continue
+
+        selections = loads(row["selections_json"])
+        won = all(generate_match_result(selection["match_id"]) == selection["outcome"] for selection in selections)
+        settled_at = now.isoformat()
+        new_status = "ganada" if won else "perdida"
+
+        with get_connection() as connection:
+            connection.execute(
+                "UPDATE placed_bets SET status = ?, settled_at = ? WHERE id = ?",
+                (new_status, settled_at, row["id"]),
+            )
+            connection.commit()
+
+        if won:
+            _credit_coins(account_id, row["potential_winnings"])
+
+
 def list_placed_bets(account_id: str) -> list[dict[str, Any]]:
     initialize_repository()
+    _settle_due_bets(account_id)
     with get_connection() as connection:
         rows = connection.execute(
             "SELECT * FROM placed_bets WHERE account_id = ? ORDER BY created_at DESC",
@@ -192,6 +264,8 @@ def list_placed_bets(account_id: str) -> list[dict[str, Any]]:
             potential_winnings=row["potential_winnings"],
             created_at=row["created_at"],
             selections=selections,
+            status=row["status"],
+            settled_at=row["settled_at"],
         )
         bets.append(serialize_placed_bet(bet))
     return bets

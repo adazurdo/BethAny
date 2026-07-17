@@ -26,9 +26,26 @@ class MatchOdds:
         }
 
 
-def _seed_for(match_id: str) -> int:
-    digest = hashlib.sha256(match_id.encode("utf-8")).hexdigest()
+def seed_for(match_id: str, salt: str = "") -> int:
+    digest = hashlib.sha256(f"{match_id}{salt}".encode("utf-8")).hexdigest()
     return int(digest[:16], 16)
+
+
+def match_probabilities(match_id: str) -> tuple[float, float, float]:
+    """Derive stable (home, draw, away) win probabilities purely from `match_id`.
+
+    Shared by `generate_match_odds` (below) and `match_results.generate_match_result`,
+    so the simulated result of a match is always consistent with the favorite implied
+    by its own odds (see `specs/006-elo/research.md` Decision 8).
+    """
+    rng = random.Random(seed_for(match_id))
+
+    # A mild home-advantage skew, like a real 1X2 market, before normalizing to probabilities.
+    home_strength = rng.uniform(0.30, 0.55)
+    draw_strength = rng.uniform(0.20, 0.28)
+    away_strength = max(0.15, 1.0 - home_strength - draw_strength)
+    total = home_strength + draw_strength + away_strength
+    return home_strength / total, draw_strength / total, away_strength / total
 
 
 def generate_match_odds(match_id: str) -> MatchOdds:
@@ -38,14 +55,7 @@ def generate_match_odds(match_id: str) -> MatchOdds:
     this market required zero schema changes and can never drift out of sync
     with itself (see `research.md` Decision 1).
     """
-    rng = random.Random(_seed_for(match_id))
-
-    # A mild home-advantage skew, like a real 1X2 market, before normalizing to probabilities.
-    home_strength = rng.uniform(0.30, 0.55)
-    draw_strength = rng.uniform(0.20, 0.28)
-    away_strength = max(0.15, 1.0 - home_strength - draw_strength)
-    total = home_strength + draw_strength + away_strength
-    home_p, draw_p, away_p = home_strength / total, draw_strength / total, away_strength / total
+    home_p, draw_p, away_p = match_probabilities(match_id)
 
     overround = 1.08  # a small bookmaker margin, so the three odds don't imply exactly 100%
 

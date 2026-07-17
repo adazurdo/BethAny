@@ -13,12 +13,20 @@ class AccountProfile:
     win_rate: str
     streak: str
     bio: str
+    coins: int = 500
+    coins_last_grant_at: str = ""
+    predictions_resolved: int = 0
+    # -1 = not yet initialized; social_repository lazily sets it to elo.milestone_tier(elo)
+    # on first use, so accounts with a manually-edited elo (pre-this-feature) or that never
+    # resolved a prediction yet bootstrap from their actual current elo, not an assumed one.
+    highest_elo_milestone: int = -1
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "displayName": self.display_name,
             "avatarUrl": self.avatar_url,
             "elo": self.elo,
+            "coins": self.coins,
             "rankLabel": self.rank_label,
             "winRate": self.win_rate,
             "streak": self.streak,
@@ -158,6 +166,19 @@ class PlacedBet:
     created_at: str
     selections: list[PlacedBetSelection] = field(default_factory=list)
     status: str = "realizada"
+    settled_at: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
+class EloMilestoneAward:
+    id: str
+    account_id: str
+    tier: int
+    bonus_coins: int
+    awarded_at: str
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -270,6 +291,7 @@ def create_default_profile(display_name: str | None = None) -> AccountProfile:
         win_rate="68% win rate",
         streak="5 wins in a row",
         bio="Competitive predictor with a sharp eye for football, tennis, and esports.",
+        coins=500,
     )
     return profile
 

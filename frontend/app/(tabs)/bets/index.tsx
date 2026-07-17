@@ -9,6 +9,18 @@ const OUTCOME_LABELS: Record<string, string> = {
   visitante: "Visitante",
 };
 
+const STATUS_LABELS: Record<string, string> = {
+  realizada: "Pendiente",
+  ganada: "Ganada",
+  perdida: "Perdida",
+};
+
+const STATUS_COLORS: Record<string, string> = {
+  realizada: colors.muted,
+  ganada: colors.accent,
+  perdida: colors.danger,
+};
+
 function formatDate(iso: string) {
   const parsed = new Date(iso);
   if (Number.isNaN(parsed.getTime())) return iso;
@@ -52,9 +64,13 @@ export default function MyBetsScreen() {
         <View key={bet.id} style={styles.card}>
           <View style={styles.cardHeader}>
             <Text style={styles.betType}>{bet.betType === "combinada" ? "Combinada" : "Simple"}</Text>
-            <Text style={styles.status}>{bet.status}</Text>
+            <Text style={[styles.status, { color: STATUS_COLORS[bet.status] ?? colors.muted }]}>
+              {STATUS_LABELS[bet.status] ?? bet.status}
+            </Text>
           </View>
-          <Text style={styles.createdAt}>{formatDate(bet.createdAt)}</Text>
+          <Text style={styles.createdAt}>
+            {bet.settledAt ? `Liquidada ${formatDate(bet.settledAt)}` : formatDate(bet.createdAt)}
+          </Text>
 
           {bet.selections.map((selection) => (
             <View key={`${bet.id}-${selection.matchId}`} style={styles.selectionRow}>

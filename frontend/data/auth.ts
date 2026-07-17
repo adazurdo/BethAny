@@ -4,10 +4,17 @@ export type AccountProfile = {
   displayName: string;
   avatarUrl: string;
   elo: number;
+  coins: number;
   rankLabel: string;
   winRate: string;
   streak: string;
   bio: string;
+};
+
+export type EloMilestoneAward = {
+  tier: number;
+  bonusCoins: number;
+  awardedAt: string;
 };
 
 export type BetSelection = {
@@ -29,6 +36,7 @@ export type AuthAccount = {
   lastLoginAt: string;
   profile: AccountProfile;
   bets: BetSelection[];
+  unseenEloMilestones: EloMilestoneAward[];
 };
 
 export type AuthCredentials = {
@@ -121,5 +129,11 @@ export async function saveCurrentAccount(update: AccountStateUpdate) {
   return requestJson<AuthAccount>("/account/me", {
     method: "PUT",
     body: JSON.stringify(update),
+  });
+}
+
+export async function ackEloMilestones() {
+  return requestJson<{ ok: true }>("/account/me/milestones/ack", {
+    method: "POST",
   });
 }

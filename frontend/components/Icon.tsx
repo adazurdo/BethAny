@@ -11,6 +11,8 @@ const iconMap = {
   ranking: "trophy-outline",
   bets: "receipt-outline",
   chevron: "chevron-forward-outline",
+  elo: "trophy-outline",
+  coins: "cash-outline",
 } as const;
 
 type IconName = keyof typeof iconMap;

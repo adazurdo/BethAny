@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { useAuth } from "../../components/AuthContext";
+import { EconomyBadges } from "../../components/EconomyBadges";
 import { EventCard } from "../../components/EventCard";
 import { SectionCard } from "../../components/SectionCard";
 import Icon from "../../components/Icon";
@@ -91,6 +92,7 @@ export default function HomeScreen() {
 
   const displayName = account?.profile.displayName ?? "";
   const elo = account?.profile.elo ?? 0;
+  const coins = account?.profile.coins ?? 0;
   const rankLabel = account?.profile.rankLabel || "Sin rango asignado";
   const hasSocialActivity = friendRequestCount > 0 || groupInviteCount > 0 || groupsWithUpdate.length > 0;
 
@@ -104,16 +106,7 @@ export default function HomeScreen() {
         <Text style={styles.kicker}>Bienvenido</Text>
         <Text style={styles.title}>{displayName}</Text>
         <Text style={styles.subtitle}>{rankLabel}</Text>
-        <View style={styles.heroStatsRow}>
-          <View style={styles.statCard}>
-            <Text style={styles.statLabel}>Elo actual</Text>
-            <Text style={styles.statValue}>{elo}</Text>
-          </View>
-          <View style={styles.statCard}>
-            <Text style={styles.statLabel}>Apuestas realizadas</Text>
-            <Text style={styles.statValue}>{betsSummary ? betsSummary.count : "—"}</Text>
-          </View>
-        </View>
+        <EconomyBadges elo={elo} coins={coins} size="lg" />
       </View>
 
       {competitions && competitions.length > 0 ? (
@@ -187,14 +180,9 @@ export default function HomeScreen() {
         <FooterLink label="Ver todas mis apuestas" onPress={() => router.push("/bets")} />
       </SectionCard>
 
-      <SectionCard title="Tu progreso" subtitle="Elo y ranking global">
-        <View style={styles.progressRow}>
-          <View>
-            <Text style={styles.progressElo}>{elo}</Text>
-            <Text style={styles.progressLabel}>Elo</Text>
-          </View>
-          <Text style={styles.progressRank}>{rankLabel}</Text>
-        </View>
+      <SectionCard title="Tu progreso" subtitle="Elo, coins y ranking global">
+        <EconomyBadges elo={elo} coins={coins} />
+        <Text style={styles.progressRank}>{rankLabel}</Text>
         <FooterLink label="Ver ranking completo" onPress={() => router.push("/ranking")} />
       </SectionCard>
 
@@ -280,28 +268,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 22,
   },
-  heroStatsRow: {
-    flexDirection: "row",
-    gap: spacing.sm,
-  },
-  statCard: {
-    flex: 1,
-    backgroundColor: colors.surfaceSoft,
-    borderRadius: radii.sm,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: spacing.sm,
-  },
-  statLabel: {
-    color: colors.muted,
-    fontSize: 12,
-    marginBottom: 4,
-  },
-  statValue: {
-    color: colors.primary,
-    fontWeight: "900",
-    fontSize: 22,
-  },
   competitionsRow: {
     gap: spacing.sm,
     paddingRight: spacing.lg,
@@ -365,24 +331,11 @@ const styles = StyleSheet.create({
     color: colors.accent,
     fontWeight: "900",
   },
-  progressRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  progressElo: {
-    color: colors.primary,
-    fontWeight: "900",
-    fontSize: 32,
-  },
-  progressLabel: {
-    color: colors.muted,
-    fontSize: 12,
-  },
   progressRank: {
     color: colors.text,
     fontWeight: "800",
     fontSize: fontSizes.md,
+    marginTop: spacing.sm,
   },
   footerLink: {
     flexDirection: "row",

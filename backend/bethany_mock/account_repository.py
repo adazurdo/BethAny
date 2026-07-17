@@ -5,14 +5,39 @@ import hmac
 import secrets
 import uuid
 from dataclasses import asdict
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from .database import dumps, fetch_one, initialize_database, loads, get_connection
 from .models import AccountProfile, BetRecord, UserAccount, create_default_bets, create_default_profile
 
+WEEKLY_INCOME_AMOUNT = 100
+INCOME_INTERVAL_DAYS = 7
+
 
 def _utcnow() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _grant_periodic_income(account: UserAccount) -> bool:
+    """Lazily grant the periodic coin income if a full interval has elapsed since the
+    last grant (see `specs/006-elo/research.md` Decision 7). Returns True if granted.
+    """
+    profile = account.profile
+    now = datetime.now(timezone.utc)
+    due = True
+    if profile.coins_last_grant_at:
+        try:
+            last_grant = datetime.fromisoformat(profile.coins_last_grant_at)
+        except ValueError:
+            last_grant = None
+        if last_grant is not None:
+            if last_grant.tzinfo is None:
+                last_grant = last_grant.replace(tzinfo=timezone.utc)
+            due = now - last_grant >= timedelta(days=INCOME_INTERVAL_DAYS)
+    if due:
+        profile.coins += WEEKLY_INCOME_AMOUNT
+        profile.coins_last_grant_at = now.isoformat()
+    return due
 
 
 def _new_id(prefix: str) -> str:
@@ -88,7 +113,12 @@ def initialize_repository() -> None:
 def get_account_by_id(account_id: str) -> UserAccount | None:
     with get_connection() as connection:
         row = fetch_one(connection, "SELECT * FROM accounts WHERE id = ?", (account_id,))
-    return _row_to_account(row) if row else None
+    if row is None:
+        return None
+    account = _row_to_account(row)
+    if _grant_periodic_income(account):
+        _serialize_account(account)
+    return account
 
 
 def get_account_by_identifier(identifier: str) -> UserAccount | None:
@@ -144,6 +174,7 @@ def authenticate_account(identifier: str, password: str) -> UserAccount:
         raise PermissionError("invalid credentials")
 
     account.last_login_at = _utcnow()
+    _grant_periodic_income(account)
     _serialize_account(account)
     return account
 

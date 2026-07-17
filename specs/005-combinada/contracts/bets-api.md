@@ -4,6 +4,8 @@
 
 Defines the local API surface the frontend uses to see 1X2 odds on football matches, place simple and combinada bets, and review placed bets in "Mis apuestas". Extends the account/session contract from `002-base-de-datos` (`contracts/auth-api.md`) and the match endpoints from `003-datos-mock`; every endpoint below requires an active session, same as `GET /account/me`.
 
+**Note (superseded by `006-elo`, 2026-07-17)**: `POST /bets/place` now also debits the placing account's coins balance (rejecting with `400 insufficient coins balance` if it doesn't cover the stake), and `GET /bets/mine` now settles due bets first, so `status` may also be `"ganada"`/`"perdida"` and each bet gains `settledAt`. See `specs/006-elo/contracts/elo-economy-api.md` for the full extension; both endpoints keep their request/response shape below otherwise unchanged.
+
 ## Expected Behaviors
 
 - Every football match returned by the existing `/mock/competitions/*` endpoints now also carries its 1X2 odds (home/draw/away).
@@ -70,6 +72,7 @@ Places one or more bets. The request shape depends on `betType`.
       "potentialWinnings": 54.50,
       "status": "realizada",
       "createdAt": "2026-07-16T12:00:00Z",
+      "settledAt": null,
       "selections": [
         { "matchId": "match-12345", "matchLabel": "Francia vs Inglaterra", "outcome": "local", "odds": 2.05 },
         { "matchId": "match-67890", "matchLabel": "Brasil vs Argentina", "outcome": "visitante", "odds": 3.40 }
@@ -82,7 +85,7 @@ Places one or more bets. The request shape depends on `betType`.
 A `simple` request with N selections returns N entries in `placedBets`, each with exactly one selection.
 
 **Errors**:
-- `400` empty `selections`, `betType` not `simple`/`combinada`, a `combinada` with fewer than 2 selections, two selections referencing the same `matchId`, or any `stake` that is missing, zero, negative, or non-numeric
+- `400` empty `selections`, `betType` not `simple`/`combinada`, a `combinada` with fewer than 2 selections, two selections referencing the same `matchId`, any `stake` that is missing, zero, negative, or non-numeric, or the account's coins balance doesn't cover the total stake (`006-elo`)
 - `401` no active session
 - `404` a `matchId` does not correspond to any known match
 - `409` a `matchId` corresponds to a match that is no longer open for betting (status other than `scheduled`/`timed`); the response names the offending `matchId`
@@ -103,6 +106,7 @@ Returns every bet placed by the requester, most recent first.
       "potentialWinnings": 54.50,
       "status": "realizada",
       "createdAt": "2026-07-16T12:00:00Z",
+      "settledAt": null,
       "selections": [
         { "matchId": "match-12345", "matchLabel": "Francia vs Inglaterra", "outcome": "local", "odds": 2.05 },
         { "matchId": "match-67890", "matchLabel": "Brasil vs Argentina", "outcome": "visitante", "odds": 3.40 }

@@ -3,6 +3,7 @@ import {
   AccountStateUpdate,
   AuthAccount,
   AuthCredentials,
+  loadCurrentAccount,
   loginAccount,
   logoutAccount,
   registerAccount,
@@ -16,6 +17,7 @@ type AuthContextValue = {
   register: (credentials: AuthCredentials) => Promise<AuthAccount>;
   logout: () => Promise<void>;
   updateAccount: (update: AccountStateUpdate) => Promise<AuthAccount>;
+  refreshAccount: () => Promise<AuthAccount>;
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -47,6 +49,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return nextAccount;
     }
 
+    async function refreshAccount() {
+      const nextAccount = await loadCurrentAccount();
+      setAccount(nextAccount);
+      return nextAccount;
+    }
+
     return {
       account,
       isAuthenticated: Boolean(account),
@@ -54,6 +62,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       register,
       logout,
       updateAccount,
+      refreshAccount,
     };
   }, [account]);
 
