@@ -4,14 +4,32 @@ import hashlib
 import hmac
 import secrets
 import uuid
-from dataclasses import asdict
+from dataclasses import asdict, fields
 from datetime import datetime, timedelta, timezone
 
 from .database import dumps, fetch_one, initialize_database, loads, get_connection
 from .models import AccountProfile, BetRecord, UserAccount, create_default_bets, create_default_profile
 
-WEEKLY_INCOME_AMOUNT = 100
-INCOME_INTERVAL_DAYS = 7
+INCOME_AMOUNT_BETHS = 1
+INCOME_INTERVAL_SECONDS = 300  # 1 Beth every 5 minutes
+
+# Legacy AccountProfile JSON keys (from before the coins->Beths rename) mapped to their
+# current field name, applied when reconstructing a profile from a persisted blob. Any
+# other unrecognized legacy key (e.g. the old, since-removed `predictions_resolved`) is
+# dropped silently and falls back to its current dataclass default.
+_PROFILE_KEY_ALIASES = {
+    "coins": "beths",
+    "coins_last_grant_at": "beths_last_grant_at",
+}
+
+
+def _migrate_profile_payload(payload: dict) -> dict:
+    migrated = dict(payload)
+    for old_key, new_key in _PROFILE_KEY_ALIASES.items():
+        if old_key in migrated:
+            migrated.setdefault(new_key, migrated.pop(old_key))
+    valid_fields = {f.name for f in fields(AccountProfile)}
+    return {key: value for key, value in migrated.items() if key in valid_fields}
 
 
 def _utcnow() -> str:
@@ -19,25 +37,38 @@ def _utcnow() -> str:
 
 
 def _grant_periodic_income(account: UserAccount) -> bool:
-    """Lazily grant the periodic coin income if a full interval has elapsed since the
-    last grant (see `specs/006-elo/research.md` Decision 7). Returns True if granted.
+    """Lazily grant 1 Beth per full `INCOME_INTERVAL_SECONDS` elapsed since the last
+    grant (see `specs/006-elo/research.md` Decision 7 — updated 2026-07-17 from a
+    weekly lump sum to a continuous 5-minute drip, so the client can show a live
+    countdown to the next Beth). Returns True if any Beths were granted.
+
+    A brand-new account (empty `beths_last_grant_at`) just gets its baseline set to
+    now, without an extra grant — the starter balance already covers it.
     """
     profile = account.profile
     now = datetime.now(timezone.utc)
-    due = True
-    if profile.coins_last_grant_at:
-        try:
-            last_grant = datetime.fromisoformat(profile.coins_last_grant_at)
-        except ValueError:
-            last_grant = None
-        if last_grant is not None:
-            if last_grant.tzinfo is None:
-                last_grant = last_grant.replace(tzinfo=timezone.utc)
-            due = now - last_grant >= timedelta(days=INCOME_INTERVAL_DAYS)
-    if due:
-        profile.coins += WEEKLY_INCOME_AMOUNT
-        profile.coins_last_grant_at = now.isoformat()
-    return due
+    if not profile.beths_last_grant_at:
+        profile.beths_last_grant_at = now.isoformat()
+        return False
+
+    try:
+        last_grant = datetime.fromisoformat(profile.beths_last_grant_at)
+    except ValueError:
+        profile.beths_last_grant_at = now.isoformat()
+        return False
+    if last_grant.tzinfo is None:
+        last_grant = last_grant.replace(tzinfo=timezone.utc)
+
+    elapsed_seconds = (now - last_grant).total_seconds()
+    intervals = int(elapsed_seconds // INCOME_INTERVAL_SECONDS)
+    if intervals <= 0:
+        return False
+
+    profile.beths += intervals * INCOME_AMOUNT_BETHS
+    # Advance by exactly the credited intervals (not to `now`), so leftover progress
+    # toward the *next* Beth isn't discarded and the countdown stays accurate.
+    profile.beths_last_grant_at = (last_grant + timedelta(seconds=intervals * INCOME_INTERVAL_SECONDS)).isoformat()
+    return True
 
 
 def _new_id(prefix: str) -> str:
@@ -91,7 +122,7 @@ def _row_to_account(row) -> UserAccount:
     if state:
         profile_payload = loads(state["profile_json"])
         bets_payload = loads(state["bets_json"])
-        profile = AccountProfile(**profile_payload)
+        profile = AccountProfile(**_migrate_profile_payload(profile_payload))
         bets = [BetRecord(**bet) for bet in bets_payload]
     return UserAccount(
         id=row["id"],

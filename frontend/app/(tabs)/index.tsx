@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { useAuth } from "../../components/AuthContext";
@@ -6,6 +6,7 @@ import { EconomyBadges } from "../../components/EconomyBadges";
 import { EventCard } from "../../components/EventCard";
 import { SectionCard } from "../../components/SectionCard";
 import Icon from "../../components/Icon";
+import { BethsIcon } from "../../components/BethsIcon";
 import { useSocialNotifications } from "../../components/SocialNotificationsContext";
 import { colors, radii, spacing, shadows, fontSizes } from "../../theme";
 import { fetchMyBets, PlacedBet } from "../../data/bets";
@@ -92,7 +93,7 @@ export default function HomeScreen() {
 
   const displayName = account?.profile.displayName ?? "";
   const elo = account?.profile.elo ?? 0;
-  const coins = account?.profile.coins ?? 0;
+  const beths = account?.profile.beths ?? 0;
   const rankLabel = account?.profile.rankLabel || "Sin rango asignado";
   const hasSocialActivity = friendRequestCount > 0 || groupInviteCount > 0 || groupsWithUpdate.length > 0;
 
@@ -106,7 +107,7 @@ export default function HomeScreen() {
         <Text style={styles.kicker}>Bienvenido</Text>
         <Text style={styles.title}>{displayName}</Text>
         <Text style={styles.subtitle}>{rankLabel}</Text>
-        <EconomyBadges elo={elo} coins={coins} size="lg" />
+        <EconomyBadges elo={elo} beths={beths} size="lg" />
       </View>
 
       {competitions && competitions.length > 0 ? (
@@ -173,15 +174,24 @@ export default function HomeScreen() {
         ) : (
           <View style={styles.summaryRows}>
             <SummaryRow label="Apuestas realizadas" value={String(betsSummary.count)} />
-            <SummaryRow label="Importe total apostado" value={`${betsSummary.totalStake.toFixed(2)} €`} />
-            <SummaryRow label="Ganancia potencial total" value={`${betsSummary.totalPotential.toFixed(2)} €`} highlight />
+            <SummaryRow
+              label="Importe total apostado"
+              value={betsSummary.totalStake.toFixed(2)}
+              icon={<BethsIcon size={12} color={colors.text} />}
+            />
+            <SummaryRow
+              label="Ganancia potencial total"
+              value={betsSummary.totalPotential.toFixed(2)}
+              highlight
+              icon={<BethsIcon size={12} color={colors.accent} />}
+            />
           </View>
         )}
         <FooterLink label="Ver todas mis apuestas" onPress={() => router.push("/bets")} />
       </SectionCard>
 
-      <SectionCard title="Tu progreso" subtitle="Elo, coins y ranking global">
-        <EconomyBadges elo={elo} coins={coins} />
+      <SectionCard title="Tu progreso" subtitle="Elo, Beths y ranking global">
+        <EconomyBadges elo={elo} beths={beths} />
         <Text style={styles.progressRank}>{rankLabel}</Text>
         <FooterLink label="Ver ranking completo" onPress={() => router.push("/ranking")} />
       </SectionCard>
@@ -213,11 +223,14 @@ export default function HomeScreen() {
   return <DesktopShell>{content}</DesktopShell>;
 }
 
-function SummaryRow({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
+function SummaryRow({ label, value, highlight, icon }: { label: string; value: string; highlight?: boolean; icon?: ReactNode }) {
   return (
     <View style={styles.summaryRow}>
       <Text style={styles.summaryLabel}>{label}</Text>
-      <Text style={[styles.summaryValue, highlight ? styles.summaryValueHighlight : null]}>{value}</Text>
+      <View style={styles.summaryValueRow}>
+        <Text style={[styles.summaryValue, highlight ? styles.summaryValueHighlight : null]}>{value}</Text>
+        {icon}
+      </View>
     </View>
   );
 }
@@ -322,6 +335,11 @@ const styles = StyleSheet.create({
   },
   summaryLabel: {
     color: colors.muted,
+  },
+  summaryValueRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
   },
   summaryValue: {
     color: colors.text,

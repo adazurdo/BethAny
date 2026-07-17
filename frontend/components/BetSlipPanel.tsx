@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { Animated, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { colors, radii, spacing, fontSizes, fontWeights } from "../theme";
 import { useBetSlip, BetSlipTab, Selection } from "./BetSlipContext";
-
-const QUICK_AMOUNTS = [2, 5, 10, 20];
+import type { EloPreview, QuickStakeOption } from "../data/eloPreview";
+import { BethsIcon } from "./BethsIcon";
 
 function formatOdds(value: number) {
   return value.toFixed(2);
@@ -15,18 +15,47 @@ function potentialWinnings(stakeRaw: string, odds: number): string | null {
   return (stake * odds).toFixed(2);
 }
 
+function EloPreviewRow({ preview, countsToday }: { preview: EloPreview | null; countsToday: boolean }) {
+  if (!preview) return null;
+  return (
+    <View style={styles.eloPreviewRow}>
+      <Text style={styles.eloPreviewText}>
+        Si aciertas: <Text style={styles.eloPreviewWin}>+{preview.deltaIfWin} Elo</Text> · Si fallas:{" "}
+        <Text style={styles.eloPreviewLose}>{preview.deltaIfLose} Elo</Text>
+      </Text>
+      {!countsToday ? <Text style={styles.eloPreviewCap}>Hoy ya no cuenta para tu Elo (límite diario alcanzado)</Text> : null}
+    </View>
+  );
+}
+
+function QuickStakeRow({ options, onPick }: { options: QuickStakeOption[]; onPick: (stake: number) => void }) {
+  return (
+    <View style={styles.quickRow}>
+      {options.map((option) => (
+        <Pressable key={option.stake} style={styles.quickButton} onPress={() => onPick(option.stake)}>
+          <Text style={styles.quickButtonText}>+{option.deltaIfWin} Elo</Text>
+          <Text style={styles.quickButtonSubtext}>{option.stake} B</Text>
+        </Pressable>
+      ))}
+    </View>
+  );
+}
+
 type TicketRowProps = {
   selection: Selection;
   activeTab: BetSlipTab;
   stakeValue: string;
   onStakeChange: (value: string) => void;
   onRemove: () => void;
+  eloPreview: EloPreview | null;
+  eloCountsToday: boolean;
+  quickOptions: QuickStakeOption[];
 };
 
 // Owns its own exit animation so removing a selection visibly fades/slides it
 // away instead of just vanishing from the list; the real removal only happens
 // once the animation finishes.
-function TicketRow({ selection, activeTab, stakeValue, onStakeChange, onRemove }: TicketRowProps) {
+function TicketRow({ selection, activeTab, stakeValue, onStakeChange, onRemove, eloPreview, eloCountsToday, quickOptions }: TicketRowProps) {
   const exitAnim = useRef(new Animated.Value(1)).current;
   const [removing, setRemoving] = useState(false);
 
@@ -65,17 +94,24 @@ function TicketRow({ selection, activeTab, stakeValue, onStakeChange, onRemove }
       </View>
 
       {activeTab === "simple" ? (
-        <View style={styles.stakeRow}>
-          <TextInput
-            value={stakeValue}
-            onChangeText={onStakeChange}
-            placeholder="Importe"
-            placeholderTextColor={colors.muted}
-            keyboardType="decimal-pad"
-            style={styles.stakeInput}
-          />
-          <Text style={styles.winnings}>{potentialWinnings(stakeValue, selection.odds) ?? "—"} €</Text>
-        </View>
+        <>
+          <View style={styles.stakeRow}>
+            <TextInput
+              value={stakeValue}
+              onChangeText={onStakeChange}
+              placeholder="Importe"
+              placeholderTextColor={colors.muted}
+              keyboardType="decimal-pad"
+              style={styles.stakeInput}
+            />
+            <View style={styles.winningsRow}>
+              <Text style={styles.winnings}>{potentialWinnings(stakeValue, selection.odds) ?? "—"}</Text>
+              <BethsIcon size={13} color={colors.accent} />
+            </View>
+          </View>
+          <EloPreviewRow preview={eloPreview} countsToday={eloCountsToday} />
+          <QuickStakeRow options={quickOptions} onPick={(stake) => onStakeChange(String(stake))} />
+        </>
       ) : null}
     </Animated.View>
   );
@@ -96,6 +132,9 @@ export function BetSlipPanel() {
     placeError,
     placeSimple,
     placeCombinada,
+    eloPreview,
+    eloRemainingToday,
+    quickStakeOptions,
   } = useBetSlip();
 
   const [justPlaced, setJustPlaced] = useState(false);
@@ -161,23 +200,12 @@ export function BetSlipPanel() {
             stakeValue={stakes[selection.matchId] ?? ""}
             onStakeChange={(value) => setStake(selection.matchId, value)}
             onRemove={() => removeSelection(selection.matchId)}
+            eloPreview={eloPreview(selection.odds, stakes[selection.matchId] ?? "")}
+            eloCountsToday={eloRemainingToday > 0}
+            quickOptions={quickStakeOptions(selection.odds)}
           />
         ))}
       </View>
-
-      {activeTab === "simple" ? (
-        <View style={styles.quickRow}>
-          {QUICK_AMOUNTS.map((amount) => (
-            <Pressable
-              key={amount}
-              style={styles.quickButton}
-              onPress={() => selections.forEach((selection) => setStake(selection.matchId, String(amount)))}
-            >
-              <Text style={styles.quickButtonText}>{amount} €</Text>
-            </Pressable>
-          ))}
-        </View>
-      ) : null}
 
       {activeTab === "combinada" && combinedOdds !== null ? (
         <View style={styles.combinadaBox}>
@@ -194,15 +222,13 @@ export function BetSlipPanel() {
               keyboardType="decimal-pad"
               style={styles.stakeInput}
             />
-            <Text style={styles.winnings}>{potentialWinnings(combinadaStake, combinedOdds) ?? "—"} €</Text>
+            <View style={styles.winningsRow}>
+              <Text style={styles.winnings}>{potentialWinnings(combinadaStake, combinedOdds) ?? "—"}</Text>
+              <BethsIcon size={13} color={colors.accent} />
+            </View>
           </View>
-          <View style={styles.quickRow}>
-            {QUICK_AMOUNTS.map((amount) => (
-              <Pressable key={amount} style={styles.quickButton} onPress={() => setCombinadaStake(String(amount))}>
-                <Text style={styles.quickButtonText}>{amount} €</Text>
-              </Pressable>
-            ))}
-          </View>
+          <EloPreviewRow preview={eloPreview(combinedOdds, combinadaStake)} countsToday={eloRemainingToday > 0} />
+          <QuickStakeRow options={quickStakeOptions(combinedOdds)} onPick={(stake) => setCombinadaStake(String(stake))} />
         </View>
       ) : null}
 
@@ -313,11 +339,37 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 8,
   },
+  winningsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    minWidth: 64,
+    justifyContent: "flex-end",
+  },
   winnings: {
     color: colors.accent,
     fontWeight: "800",
-    minWidth: 64,
-    textAlign: "right",
+  },
+  eloPreviewRow: {
+    marginTop: 4,
+  },
+  eloPreviewText: {
+    color: colors.muted,
+    fontSize: fontSizes.sm,
+  },
+  eloPreviewWin: {
+    color: colors.primary,
+    fontWeight: "800",
+  },
+  eloPreviewLose: {
+    color: colors.danger,
+    fontWeight: "800",
+  },
+  eloPreviewCap: {
+    color: colors.muted,
+    fontSize: fontSizes.sm,
+    fontStyle: "italic",
+    marginTop: 2,
   },
   quickRow: {
     flexDirection: "row",
@@ -334,9 +386,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   quickButtonText: {
-    color: colors.text,
+    color: colors.primary,
     fontWeight: "800",
     fontSize: fontSizes.sm,
+  },
+  quickButtonSubtext: {
+    color: colors.muted,
+    fontSize: 10,
+    fontWeight: "700",
+    marginTop: 1,
   },
   combinadaHint: {
     color: colors.muted,

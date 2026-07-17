@@ -2,50 +2,57 @@
 
 ## Overview
 
-Esta feature amplía el `AccountProfile` ya existente con un saldo de coins y los contadores necesarios para el ELO dinámico y los hitos, sin crear una entidad "Wallet" separada (Decision 1, `research.md`). Añade una entidad nueva de solo-auditoría (`EloMilestoneAward`) y una liquidación real sobre el `PlacedBet` ya existente de `005-combinada`, apoyada en un resultado de partido simulado que no se persiste (igual patrón que `MatchOdds`).
+Esta feature amplía el `AccountProfile` ya existente con un saldo de Beths (moneda renombrada desde "coins" el 2026-07-17) y los contadores necesarios para el ELO dinámico y los hitos, sin crear una entidad "Wallet" separada (Decision 1, `research.md`). Añade una entidad nueva de solo-auditoría (`EloMilestoneAward`) y una liquidación real sobre el `PlacedBet` ya existente de `005-combinada`, apoyada en un resultado de partido simulado que no se persiste (igual patrón que `MatchOdds`). **Revisión 2026-07-17**: el ELO ya no depende de las predicciones de grupo — se recalcula únicamente al liquidar una apuesta (ver `EloUpdate` más abajo y `research.md` Decision 2-bis).
 
 ## Entities
 
 ### AccountProfile *(existente, ampliado)*
 
 **Campos nuevos**:
-- `coins: int` — saldo gastable de la cuenta, por defecto `500` (`STARTING_COINS`).
-- `coins_last_grant_at: str` — timestamp ISO 8601 del último cobro de renta periódica; cadena vacía si nunca se ha concedido (cuentas migradas).
-- `predictions_resolved: int` — número de predicciones de grupo resueltas en las que esta cuenta votó; por defecto `0`. Determina el K-factor del ELO.
+- `beths: int` — saldo gastable de la cuenta, por defecto `500`.
+- `beths_last_grant_at: str` — timestamp ISO 8601 del último cobro de renta periódica; cadena vacía si nunca se ha concedido (cuentas migradas). Expuesto como `bethsLastGrantAt` en `AccountProfile.to_dict()` (Revisión 2026-07-17) para que el cliente calcule y muestre una cuenta atrás hasta el próximo Beth, sin necesitar un endpoint dedicado.
 - `highest_elo_milestone: int` — el hito de ELO (múltiplo de 100) más alto ya recompensado; por defecto el tramo de 100 en el que cae el ELO inicial de la cuenta (p. ej. `1700` para un ELO de `1768`).
+- `elo_bets_settled: int` — número de apuestas liquidadas que ya movieron el ELO de esta cuenta (no todas las apuestas liquidadas, solo las que cayeron dentro del tope diario); por defecto `0`. Determina el K-factor del ELO y el estado "provisional" de cara a un futuro ranking.
+- `elo_bets_counted_today: int` / `elo_bets_counted_date: str` — cuántas apuestas ya han movido el ELO de esta cuenta en la fecha UTC `elo_bets_counted_date`; se reinicia a `0` automáticamente en la primera liquidación de un día distinto.
+
+Los tres campos anteriores se exponen como `eloBetsSettled`/`eloBetsCountedToday`/`eloBetsCountedDate` en `AccountProfile.to_dict()` (Revisión 2026-07-17), no para mostrarse directamente al usuario sino para que el cliente reproduzca la fórmula de ELO en `frontend/data/eloPreview.ts` y previsualice el resultado de una apuesta antes de colocarla, sin round-trip al backend.
 
 **Campos existentes reutilizados sin cambio de forma**:
-- `elo: int` — deja de ser un valor fijo asignado al crear la cuenta; a partir de esta feature solo lo modifica la resolución de predicciones de grupo (ver `PredictionVote` → recálculo de ELO más abajo). El cliente ya no puede escribirlo (Decision 11).
+- `elo: int` — deja de ser un valor fijo asignado al crear la cuenta; a partir de esta feature solo lo modifica la liquidación de apuestas de partido (ver `EloUpdate` más abajo). El cliente ya no puede escribirlo (Decision 11).
+
+**Campo retirado**:
+- `predictions_resolved: int` — existía en la versión original de esta spec (contaba predicciones de grupo resueltas votadas); se retira en la revisión 2026-07-17 y se sustituye por `elo_bets_settled`. `account_repository._migrate_profile_payload` descarta esta clave silenciosamente si aparece en un blob JSON persistido antiguo.
 
 **Reglas**:
-- Todos los campos nuevos tienen valor por defecto en el `dataclass`, así que una fila ya persistida sin ellos (cuenta creada antes de esta feature) se rellena automáticamente al cargarse — no requiere migración de esquema (Decision 1).
-- `elo` y `coins` son completamente independientes: ninguna función de esta feature actualiza ambos a la vez, salvo la recompensa de hito (que solo toca `coins`, nunca `elo`).
+- Todos los campos nuevos tienen valor por defecto en el `dataclass`, así que una fila ya persistida sin ellos (cuenta creada antes de esta feature) se rellena automáticamente al cargarse. El renombrado `coins`→`beths` sí requiere remapeo explícito de claves legadas (no solo un valor por defecto), ver Decision 1 en `research.md`.
+- `elo` y `beths` son completamente independientes: ninguna función de esta feature actualiza ambos a la vez, salvo la recompensa de hito (que solo toca `beths`, nunca `elo`).
 
 ### EloUpdate *(derivado, no persistido como entidad propia)*
 
-Representa el resultado de recalcular el ELO de un votante tras resolver una predicción.
+Representa el resultado de recalcular el ELO de una cuenta tras liquidar una de sus apuestas de partido.
 
 **Campos conceptuales**:
 - `account_id`
 - `previous_elo`, `new_elo`
-- `opponent_rating` — ELO medio del resto de votantes de esa predicción (excluyendo a este votante)
-- `result` — `1.0` si acertó, `0.0` si falló
-- `k_factor` — derivado de `predictions_resolved` antes de esta actualización
+- `implied_probability` — `1 / combined_odds` de la apuesta liquidada, acotada a `[0.05, 0.95]` (la "dificultad")
+- `stake_multiplier` — rendimientos decrecientes sobre el `stake` apostado (capado a `elo.MAX_ELO_STAKE = 1000`), acotado a `[0.8, 1.5]` (la "confianza")
+- `result` — `1.0` si la apuesta se ganó, `0.0` si se perdió
+- `k_factor` — derivado de `elo_bets_settled` antes de esta actualización (3 escalones: 32/16/8)
 
 **Reglas**:
-- Se calcula y aplica por cada voto de una predicción en el momento de `resolve_prediction`; no existe fuera de esa operación ni se persiste como fila propia (solo su efecto: el `elo` actualizado en `AccountProfile`).
-- Si una predicción tiene un único votante, no se calcula ninguna `EloUpdate` para él (no hay `opponent_rating` posible).
-- Nunca se calcula para `abort_prediction`.
+- Se calcula y aplica al liquidar cada apuesta pendiente (`bet_repository._settle_due_bets` → `_apply_elo_for_settlement`); no existe fuera de esa operación ni se persiste como fila propia (solo su efecto: el `elo` actualizado en `AccountProfile`).
+- No se calcula si la cuenta ya alcanzó `elo.DAILY_ELO_COUNTED_BETS` (5) apuestas contadas para ELO ese mismo día UTC — la apuesta se liquida y paga Beths igualmente, pero sin efecto en el ELO.
+- Nunca se calcula para predicciones de grupo (`resolve_prediction`/`abort_prediction`), que no tienen relación alguna con el ELO tras la revisión 2026-07-17.
 
 ### EloMilestoneAward *(nueva, tabla `elo_milestone_awards`)*
 
-Registro de auditoría de cada recompensa de coins concedida por cruzar un hito de ELO.
+Registro de auditoría de cada recompensa de Beths concedida por cruzar un hito de ELO.
 
 **Campos**:
 - `id`
 - `account_id`
 - `tier: int` — el hito cruzado (múltiplo de 100, p. ej. `1800`)
-- `bonus_coins: int` — coins concedidas por este hito (`COINS_PER_ELO_TIER`)
+- `bonus_beths: int` — Beths concedidas por este hito (`elo.BETHS_PER_ELO_TIER`)
 - `awarded_at: str` — timestamp ISO 8601
 
 **Reglas**:
@@ -72,18 +79,18 @@ El resultado simulado de un partido, análogo a `MatchOdds` (`005-combinada`).
 
 **Cambio de significado del campo existente `status`**:
 - `"realizada"` — pendiente de liquidar (estado inicial, sin cambios respecto a `005-combinada`).
-- `"ganada"` — liquidada, el resultado simulado coincidió con la selección (o con todas las selecciones, si es combinada); `potential_winnings` ya se acreditó al saldo de coins de la cuenta.
+- `"ganada"` — liquidada, el resultado simulado coincidió con la selección (o con todas las selecciones, si es combinada); `potential_winnings` ya se acreditó al saldo de Beths de la cuenta.
 - `"perdida"` — liquidada, el resultado simulado no coincidió; no se acredita nada (el `stake` ya se había debitado al colocarla).
 
 **Reglas nuevas**:
 - Una apuesta pasa de `"realizada"` a `"ganada"`/`"perdida"` exactamente una vez, cuando `now >= created_at + SETTLEMENT_DELAY_MINUTES` (Decision 9), evaluado de forma perezosa al listar las apuestas de una cuenta.
 - Una `combinada` es `"ganada"` solo si el `MatchResult` de **todas** sus `selections` coincide con su `outcome` (Decision 10); si cualquiera falla, es `"perdida"` en bloque.
-- El `stake` ya se debitó del saldo de coins al colocar la apuesta (ver "Colocar una apuesta" más abajo); la liquidación solo puede sumar (`"ganada"`) o no hacer nada más (`"perdida"`), nunca vuelve a restar.
+- El `stake` ya se debitó del saldo de Beths al colocar la apuesta (ver "Colocar una apuesta" más abajo); la liquidación solo puede sumar (`"ganada"`) o no hacer nada más (`"perdida"`), nunca vuelve a restar.
 
 ### "Colocar una apuesta" *(flujo, no entidad)*
 
 **Regla nueva sobre el flujo ya existente de `place_bet`**:
-- Antes de persistir ninguna fila, se calcula el importe total a debitar (suma de los `stake` de todas las apuestas simples del lote, o el `stake` compartido de una combinada) y se compara contra `AccountProfile.coins`. Si el saldo no alcanza, la operación entera se rechaza sin persistir nada y sin debitar nada (Decision 10).
+- Antes de persistir ninguna fila, se calcula el importe total a debitar (suma de los `stake` de todas las apuestas simples del lote, o el `stake` compartido de una combinada) y se compara contra `AccountProfile.beths`. Si el saldo no alcanza, la operación entera se rechaza sin persistir nada y sin debitar nada (Decision 10). Además, cada `stake` individual se rechaza si supera `elo.MAX_ELO_STAKE` (1000), antes incluso de comprobar el saldo.
 - Si alcanza, se debita el total una sola vez del saldo antes de persistir las apuestas.
 
 ## Relationships
@@ -91,19 +98,25 @@ El resultado simulado de un partido, análogo a `MatchOdds` (`005-combinada`).
 ```text
 AccountProfile (1) ──── (N) EloMilestoneAward
 AccountProfile (1) ──── (N) PlacedBet
-CustomPrediction (1) ──── (N) PredictionVote ──resuelve──▶ EloUpdate (aplicado a AccountProfile.elo)
+PlacedBet ──liquida──▶ EloUpdate (aplicado a AccountProfile.elo, dentro del tope diario)
 PlacedBet (1) ──── (N) PlacedBetSelection ──liquida contra──▶ MatchResult (derivado de match_id)
+CustomPrediction (1) ──── (N) PredictionVote ──resuelve──▶ ranking de grupo por aciertos (sin relación con AccountProfile.elo)
 ```
 
 ## Constantes de configuración (no editables por el usuario, FR-010/FR-011/Assumptions)
 
 | Constante | Valor | Uso |
 |---|---|---|
-| `STARTING_COINS` | 500 | Saldo inicial de toda cuenta (nueva o migrada) |
-| `WEEKLY_INCOME_AMOUNT` | 100 | Renta periódica |
-| `INCOME_INTERVAL_DAYS` | 7 | Periodo de la renta |
-| `ELO_FLOOR` | 100 | Suelo mínimo de ELO |
-| `ELO_TIER_SIZE` | 100 | Tamaño de cada hito de ELO |
-| `COINS_PER_ELO_TIER` | 50 | Recompensa por hito cruzado |
-| `K_FACTOR_NEW` / `K_FACTOR_ESTABLISHED` | 32 / 16 | Antes/después de 30 predicciones resueltas |
+| `AccountProfile.beths` default | 500 | Saldo inicial de toda cuenta (nueva o migrada) |
+| `INCOME_AMOUNT_BETHS` | 1 | Renta continua concedida por intervalo vencido |
+| `INCOME_INTERVAL_SECONDS` | 300 | Periodo de la renta (1 Beth cada 5 minutos, con acumulación de intervalos vencidos) |
+| `elo.ELO_FLOOR` | 100 | Suelo mínimo de ELO |
+| `elo.ELO_TIER_SIZE` | 100 | Tamaño de cada hito de ELO |
+| `elo.BETHS_PER_ELO_TIER` | 50 | Recompensa por hito cruzado |
+| `elo.K_FACTOR_NEW` / `K_FACTOR_ESTABLISHED` / `K_FACTOR_VETERAN` | 32 / 16 / 8 | Bajo 30 / 30–199 / 200+ apuestas liquidadas que movieron ELO |
+| `elo.P_IMPLIED_MIN` / `P_IMPLIED_MAX` | 0.05 / 0.95 | Tope de la probabilidad implícita de una cuota |
+| `elo.STAKE_MULT_MIN` / `STAKE_MULT_MAX` | 0.8 / 1.5 | Tope del multiplicador de confianza por Beths apostados |
+| `elo.MAX_ELO_STAKE` | 1000 | Tope de Beths por apuesta individual |
+| `elo.DAILY_ELO_COUNTED_BETS` | 5 | Apuestas liquidadas por día y cuenta que mueven el ELO |
+| `elo.PROVISIONAL_COUNTED_BETS` | 20 | Umbral de apuestas liquidadas bajo el cual el ranking se considera "provisional" |
 | `SETTLEMENT_DELAY_MINUTES` | 90 | Tiempo tras colocar una apuesta hasta poder liquidarla |

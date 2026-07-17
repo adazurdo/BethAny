@@ -1,14 +1,16 @@
 import { StyleSheet, Text, View } from "react-native";
 import Icon from "./Icon";
+import { BethsIcon } from "./BethsIcon";
+import { BethsCountdown } from "./BethsCountdown";
 import { colors, radii, shadows, spacing } from "../theme";
 
 type EconomyBadgesProps = {
   elo: number;
-  coins: number;
+  beths: number;
   size?: "md" | "lg";
 };
 
-export function EconomyBadges({ elo, coins, size = "md" }: EconomyBadgesProps) {
+export function EconomyBadges({ elo, beths, size = "md" }: EconomyBadgesProps) {
   const large = size === "lg";
   return (
     <View style={styles.row}>
@@ -19,11 +21,12 @@ export function EconomyBadges({ elo, coins, size = "md" }: EconomyBadgesProps) {
           <Text style={[styles.value, large ? styles.valueLarge : null, { color: colors.primary }]}>{elo}</Text>
         </View>
       </View>
-      <View style={[styles.badge, styles.coinsBadge, large ? styles.badgeLarge : null]}>
-        <Icon glyph="coins" size={large ? 24 : 18} color={colors.warning} />
+      <View style={[styles.badge, styles.bethsBadge, large ? styles.badgeLarge : null]}>
+        <BethsIcon size={large ? 24 : 18} color={colors.warning} />
         <View>
-          <Text style={styles.label}>Coins</Text>
-          <Text style={[styles.value, large ? styles.valueLarge : null, { color: colors.warning }]}>{coins}</Text>
+          <Text style={styles.label}>Beths</Text>
+          <Text style={[styles.value, large ? styles.valueLarge : null, { color: colors.warning }]}>{beths}</Text>
+          <BethsCountdown color={colors.muted} />
         </View>
       </View>
     </View>
@@ -85,7 +88,7 @@ const styles = StyleSheet.create({
   eloBadge: {
     borderColor: colors.primary,
   },
-  coinsBadge: {
+  bethsBadge: {
     borderColor: colors.warning,
   },
   badgeLarge: {

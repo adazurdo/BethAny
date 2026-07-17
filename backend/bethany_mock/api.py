@@ -529,14 +529,16 @@ class BethanyRequestHandler(BaseHTTPRequestHandler):
         if "profile" in payload and isinstance(payload["profile"], dict):
             server_profile = account.profile
             new_profile = _coerce_profile(payload["profile"])
-            # elo, coins, and the other economy fields are server-computed only (FR-014):
+            # elo, beths, and the other economy fields are server-computed only (FR-014):
             # whatever the client sends for them is ignored, the previously persisted
             # values always win.
             new_profile.elo = server_profile.elo
-            new_profile.coins = server_profile.coins
-            new_profile.coins_last_grant_at = server_profile.coins_last_grant_at
-            new_profile.predictions_resolved = server_profile.predictions_resolved
+            new_profile.beths = server_profile.beths
+            new_profile.beths_last_grant_at = server_profile.beths_last_grant_at
             new_profile.highest_elo_milestone = server_profile.highest_elo_milestone
+            new_profile.elo_bets_settled = server_profile.elo_bets_settled
+            new_profile.elo_bets_counted_today = server_profile.elo_bets_counted_today
+            new_profile.elo_bets_counted_date = server_profile.elo_bets_counted_date
             account.profile = new_profile
         if "bets" in payload and isinstance(payload["bets"], list):
             account.bets = _coerce_bets(payload["bets"])

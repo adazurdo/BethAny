@@ -4,7 +4,7 @@
 
 **Input**: Feature specification from `/specs/005-combinada/spec.md`
 
-**Note (superseded by `006-elo`, 2026-07-17)**: The "no virtual wallet/balance" and "no settlement" statements in `Technical Context` (Constraints) and both `Constitution Check` sections below are superseded by `specs/006-elo/`, which added a coins balance debited on placement and a lazy settlement against a deterministic simulated match result. See `spec.md` Amendment 4 and `specs/006-elo/plan.md` for the current design; everything else in this plan (odds computation, `placed_bets` shape, Simple/Combinada behavior) remains accurate.
+**Note (superseded by `006-elo`, 2026-07-17)**: The "no virtual wallet/balance" and "no settlement" statements in `Technical Context` (Constraints) and both `Constitution Check` sections below are superseded by `specs/006-elo/`, which added a Beths balance (named "coins" at the time, renamed 2026-07-17) debited on placement and a lazy settlement against a deterministic simulated match result. See `spec.md` Amendment 4 and `specs/006-elo/plan.md` for the current design; everything else in this plan (odds computation, `placed_bets` shape, Simple/Combinada behavior) remains accurate.
 
 ## Summary
 

@@ -1,4 +1,4 @@
-# Contract: Elo Economy (ELO dinámico, saldo de coins, hitos, liquidación de apuestas)
+# Contract: Elo Economy (ELO dinámico, saldo de Beths, hitos, liquidación de apuestas)
 
 ## Purpose
 
@@ -6,19 +6,19 @@ Documenta los cambios sobre el contrato de cuenta ya existente (`002-base-de-dat
 
 ## Expected Behaviors
 
-- `GET /account/me` (y cualquier respuesta que serialice una cuenta) siempre refleja el ELO y el saldo de coins ya calculados por el servidor, nunca lo último que el cliente intentó guardar.
-- Cargar una cuenta (login o `GET /account/me`) concede automáticamente la renta periódica de coins si ha vencido, sin ninguna acción explícita del cliente.
-- `PUT /account/me` ignora cualquier `elo` o `coins` que llegue en el payload; el perfil guardado conserva siempre los valores calculados por el servidor para esos dos campos.
-- Resolver una predicción de grupo (`POST /social/groups/{groupId}/predictions/{predictionId}/resolve`) recalcula el ELO de cada votante y puede generar recompensas de hito; la respuesta del endpoint no cambia de forma (sigue siendo `serialize_group_detail`), pero los `elo` de `members` reflejan ya los nuevos valores.
-- `POST /bets/place` puede rechazar la colocación por saldo insuficiente, además de los rechazos ya existentes (partido cerrado, selección inválida).
-- `GET /bets/mine` liquida de forma perezosa cualquier apuesta pendiente cuyo tiempo de liquidación ya haya pasado, antes de devolver la lista.
+- `GET /account/me` (y cualquier respuesta que serialice una cuenta) siempre refleja el ELO y el saldo de Beths ya calculados por el servidor, nunca lo último que el cliente intentó guardar.
+- Cargar una cuenta (login o `GET /account/me`) concede automáticamente la renta periódica de Beths si ha vencido, sin ninguna acción explícita del cliente.
+- `PUT /account/me` ignora cualquier `elo` o `Beths` que llegue en el payload; el perfil guardado conserva siempre los valores calculados por el servidor para esos dos campos.
+- Resolver una predicción de grupo (`POST /social/groups/{groupId}/predictions/{predictionId}/resolve`) **no** recalcula el ELO de nadie (revisión 2026-07-17); solo actualiza el estado de la predicción, igual que antes de esta feature. Su respuesta (`serialize_group_detail`) no cambia de forma.
+- `POST /bets/place` puede rechazar la colocación por saldo insuficiente o por superar el importe máximo de apuesta, además de los rechazos ya existentes (partido cerrado, selección inválida).
+- `GET /bets/mine` liquida de forma perezosa cualquier apuesta pendiente cuyo tiempo de liquidación ya haya pasado, antes de devolver la lista — esa liquidación es ahora también el único punto donde puede cambiar el ELO de la cuenta y generarse una recompensa de hito.
 - Un nuevo par de endpoints permite consultar y confirmar la lectura de recompensas de hito de ELO pendientes.
 
 ## Endpoints
 
 ### `GET /account/me` *(existente, respuesta ampliada)*
 
-**Response** (`200`) — `profile` gana `coins`; la respuesta de cuenta gana `unseenEloMilestones`:
+**Response** (`200`) — `profile` gana `beths`, `bethsLastGrantAt`, `eloBetsSettled`, `eloBetsCountedToday` y `eloBetsCountedDate`; la respuesta de cuenta gana `unseenEloMilestones`. Los cuatro campos nuevos de `profile` distintos de `beths` no están pensados para mostrarse directamente: `bethsLastGrantAt` alimenta la cuenta atrás del cliente hasta el próximo Beth (uno cada `INCOME_INTERVAL_SECONDS` = 300s) y los tres `eloBets*` alimentan la vista previa de ELO del boleto de apuestas (revisión 2026-07-17, ver `research.md`):
 
 ```json
 {
@@ -28,24 +28,28 @@ Documenta los cambios sobre el contrato de cuenta ya existente (`002-base-de-dat
     "displayName": "bethany_fox",
     "avatarUrl": "https://...",
     "elo": 1812,
-    "coins": 640,
+    "beths": 640,
+    "bethsLastGrantAt": "2026-07-17T10:58:12+00:00",
     "rankLabel": "Prediction Captain",
     "winRate": "68% win rate",
     "streak": "5 wins in a row",
-    "bio": "..."
+    "bio": "...",
+    "eloBetsSettled": 34,
+    "eloBetsCountedToday": 2,
+    "eloBetsCountedDate": "2026-07-17"
   },
   "bets": [ ],
   "unseenEloMilestones": [
-    { "tier": 1800, "bonusCoins": 50, "awardedAt": "2026-07-17T10:00:00+00:00" }
+    { "tier": 1800, "bonusBeths": 50, "awardedAt": "2026-07-17T10:00:00+00:00" }
   ]
 }
 ```
 
 ### `PUT /account/me` *(existente, comportamiento restringido)*
 
-**Request**: sin cambio de forma; `profile.elo` y `profile.coins`, si se envían, se ignoran.
+**Request**: sin cambio de forma; `profile.elo`, `profile.beths` y el resto de campos server-only expuestos en la respuesta (`bethsLastGrantAt`, `eloBetsSettled`, `eloBetsCountedToday`, `eloBetsCountedDate`), si se envían, se ignoran. `highest_elo_milestone` es puramente interno: ni se expone en `GET`/`PUT /account/me` ni el cliente puede enviarlo.
 
-**Response** (`200`): mismo formato que `GET /account/me`; `profile.elo` y `profile.coins` en la respuesta son siempre los valores ya persistidos por el servidor, no los del payload enviado.
+**Response** (`200`): mismo formato que `GET /account/me`; esos campos en la respuesta son siempre los valores ya persistidos por el servidor, no los del payload enviado.
 
 ### `POST /account/me/milestones/ack` *(nuevo)*
 
@@ -61,22 +65,27 @@ Marca como vistas todas las recompensas de hito de ELO pendientes de la cuenta a
 **Errores**:
 - `401` si no hay sesión activa.
 
-### `POST /social/groups/{groupId}/predictions/{predictionId}/resolve` *(existente, efecto ampliado)*
+### `POST /social/groups/{groupId}/predictions/{predictionId}/resolve` *(existente, sin cambios)*
 
-Sin cambios en el request. Efecto añadido: por cada `PredictionVote` de esa predicción, se recalcula el `elo` de la cuenta votante (ver `research.md` Decision 2) y, si cruza uno o más hitos, se acredita `coins` y se inserta el `EloMilestoneAward` correspondiente. La respuesta sigue siendo `serialize_group_detail(group, account_id)` sin cambios de forma; los `elo` dentro de `members` ya reflejan los nuevos valores.
+Sin cambios de comportamiento respecto a `004-social`: resolver una predicción actualiza su `resolvedOption`/`resolvedAt` y el ranking de aciertos del grupo. No toca el `elo` ni el `beths` de ningún miembro (revisión 2026-07-17).
 
-### `POST /bets/place` *(existente, nuevo motivo de rechazo)*
+### `POST /bets/place` *(existente, nuevos motivos de rechazo)*
 
-Sin cambios de request/response en el caso de éxito. Nuevo caso de error:
+Sin cambios de request/response en el caso de éxito. Nuevos casos de error:
 
 **Response** (`400`, saldo insuficiente):
 ```json
-{ "error": "insufficient coins balance" }
+{ "error": "insufficient beths balance" }
+```
+
+**Response** (`400`, importe por encima del tope):
+```json
+{ "error": "stake cannot exceed 1000 beths" }
 ```
 
 ### `GET /bets/mine` *(existente, respuesta ampliada + efecto de liquidación)*
 
-Antes de responder, liquida cualquier apuesta de la cuenta en estado `realizada` cuyo tiempo de liquidación ya haya pasado. Cada `PlacedBet` en la respuesta gana `settledAt` y `status` puede valer ahora `"realizada" | "ganada" | "perdida"`:
+Antes de responder, liquida cualquier apuesta de la cuenta en estado `realizada` cuyo tiempo de liquidación ya haya pasado — y con ella, recalcula el ELO de la cuenta según la cuota y el stake de esa apuesta (siempre que no se haya alcanzado ya el tope diario de apuestas que cuentan para ELO) y concede cualquier recompensa de hito cruzada. Cada `PlacedBet` en la respuesta gana `settledAt` y `status` puede valer ahora `"realizada" | "ganada" | "perdida"`:
 
 ```json
 {
@@ -103,5 +112,6 @@ Antes de responder, liquida cualquier apuesta de la cuenta en estado `realizada`
 
 | Endpoint | Status | Condición |
 |---|---|---|
-| `POST /bets/place` | 400 | Saldo de coins insuficiente para el importe total del lote |
+| `POST /bets/place` | 400 | Saldo de Beths insuficiente para el importe total del lote |
+| `POST /bets/place` | 400 | Alguna selección apuesta más de 1000 Beths |
 | `POST /account/me/milestones/ack` | 401 | Sin sesión activa |

@@ -4,13 +4,14 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+from . import elo
 from .account_repository import get_account_by_id, save_account_state
 from .database import dumps, get_connection, initialize_database, loads
 from .match_results import generate_match_result
 from .mock_dataset_repository import find_match_by_id
 from .models import MockMatch, PlacedBet, PlacedBetSelection
 from .odds import generate_match_odds, is_open_for_betting
-from .social_repository import ConflictError
+from .social_repository import ConflictError, award_elo_milestone
 
 OUTCOMES = {"local", "empate", "visitante"}
 SETTLEMENT_DELAY_MINUTES = 90
@@ -27,24 +28,63 @@ def _parse_timestamp(value: str) -> datetime:
     return parsed
 
 
-def _debit_coins(account_id: str, amount: float) -> None:
+def _debit_beths(account_id: str, amount: float) -> None:
     account = get_account_by_id(account_id)
     if account is None:
         raise LookupError("account not found")
-    # coins is a whole-number game currency; stakes (inherited from 005-combinada) may carry
-    # decimals, so the debited/credited amount is rounded to the nearest coin at this boundary.
+    # beths is a whole-number game currency; stakes (inherited from 005-combinada) may carry
+    # decimals, so the debited/credited amount is rounded to the nearest beth at this boundary.
     rounded_amount = round(amount)
-    if account.profile.coins < rounded_amount:
-        raise ValueError("insufficient coins balance")
-    account.profile.coins -= rounded_amount
+    if account.profile.beths < rounded_amount:
+        raise ValueError("insufficient beths balance")
+    account.profile.beths -= rounded_amount
     save_account_state(account)
 
 
-def _credit_coins(account_id: str, amount: float) -> None:
+def _credit_beths(account_id: str, amount: float) -> None:
     account = get_account_by_id(account_id)
     if account is None:
         return
-    account.profile.coins += round(amount)
+    account.profile.beths += round(amount)
+    save_account_state(account)
+
+
+def _apply_elo_for_settlement(account_id: str, combined_odds: float, stake: float, won: bool) -> None:
+    """Move `account_id`'s Elo from one settled bet's outcome (cuota=difficulty,
+    stake=confidence, won=result), unless today's daily Elo-counted cap is already
+    spent (see specs/006-elo/research.md Decision 2-bis) — the bet's Beths payout still
+    applies either way, only the Elo effect is capped.
+    """
+    account = get_account_by_id(account_id)
+    if account is None:
+        return
+    profile = account.profile
+    today = datetime.now(timezone.utc).date().isoformat()
+    if profile.elo_bets_counted_date != today:
+        profile.elo_bets_counted_date = today
+        profile.elo_bets_counted_today = 0
+    if profile.elo_bets_counted_today >= elo.DAILY_ELO_COUNTED_BETS:
+        return
+
+    capped_stake = min(stake, elo.MAX_ELO_STAKE)
+    result = 1.0 if won else 0.0
+    new_elo, _delta = elo.update_elo_from_bet(profile.elo, combined_odds, result, profile.elo_bets_settled, capped_stake)
+
+    if profile.highest_elo_milestone < 0:
+        profile.highest_elo_milestone = elo.milestone_tier(profile.elo)
+
+    profile.elo = new_elo
+    profile.elo_bets_settled += 1
+    profile.elo_bets_counted_today += 1
+
+    new_tier = elo.milestone_tier(new_elo)
+    tier = profile.highest_elo_milestone + elo.ELO_TIER_SIZE
+    while tier <= new_tier:
+        profile.beths += elo.BETHS_PER_ELO_TIER
+        award_elo_milestone(account.id, tier, elo.BETHS_PER_ELO_TIER)
+        tier += elo.ELO_TIER_SIZE
+    profile.highest_elo_milestone = max(profile.highest_elo_milestone, new_tier)
+
     save_account_state(account)
 
 
@@ -67,6 +107,8 @@ def _coerce_stake(value: Any) -> float:
         raise ValueError("stake must be a number") from None
     if stake <= 0:
         raise ValueError("stake must be greater than zero")
+    if stake > elo.MAX_ELO_STAKE:
+        raise ValueError(f"stake cannot exceed {elo.MAX_ELO_STAKE} beths")
     return round(stake, 2)
 
 
@@ -190,7 +232,7 @@ def place_bet(
             placed_selections.append(
                 PlacedBetSelection(match_id=match.id, match_label=label, outcome=outcome, odds=odds)
             )
-        _debit_coins(account_id, shared_stake)
+        _debit_beths(account_id, shared_stake)
         bet = _persist(account_id, "combinada", shared_stake, combined_odds, placed_selections)
         return [serialize_placed_bet(bet)]
 
@@ -200,7 +242,7 @@ def place_bet(
     selection_stakes = [
         _coerce_stake(selections_payload[index].get("stake", stake)) for index in range(len(resolved))
     ]
-    _debit_coins(account_id, sum(selection_stakes))
+    _debit_beths(account_id, sum(selection_stakes))
 
     placed: list[dict[str, Any]] = []
     for index, (match, outcome, odds, label) in enumerate(resolved):
@@ -240,7 +282,8 @@ def _settle_due_bets(account_id: str) -> None:
             connection.commit()
 
         if won:
-            _credit_coins(account_id, row["potential_winnings"])
+            _credit_beths(account_id, row["potential_winnings"])
+        _apply_elo_for_settlement(account_id, row["combined_odds"], row["stake"], won)
 
 
 def list_placed_bets(account_id: str) -> list[dict[str, Any]]:

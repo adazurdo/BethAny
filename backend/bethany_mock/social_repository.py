@@ -3,8 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-from . import elo
-from .account_repository import get_account_by_id, get_account_by_identifier, save_account_state
+from .account_repository import get_account_by_id, get_account_by_identifier
 from .database import dumps, fetch_one, get_connection, initialize_database, loads
 from .models import CustomPrediction, FriendRequest, GroupInvite, GroupMembership, PredictionGroup, PredictionVote
 
@@ -557,9 +556,7 @@ def resolve_prediction(group_id: str, prediction_id: str, requester_account_id: 
             (option, now, prediction.id),
         )
         connection.commit()
-    resolved = get_prediction(prediction_id)
-    _apply_elo_and_milestones(resolved)
-    return resolved
+    return get_prediction(prediction_id)
 
 
 def abort_prediction(group_id: str, prediction_id: str, requester_account_id: str) -> CustomPrediction:
@@ -624,67 +621,20 @@ def cast_vote(group_id: str, prediction_id: str, requester_account_id: str, opti
         connection.commit()
 
 
-# --- Elo recalculation and milestones -------------------------------------------------------
+# --- Elo milestones ---------------------------------------------------------------------
+# Elo itself is no longer touched by group predictions (see specs/006-elo/research.md
+# Decision 2-bis): it's recalculated only from settled match bets, in
+# `bet_repository._settle_due_bets`. This section just keeps the milestone-award
+# bookkeeping (crossing an Elo tier grants a one-off Beths bonus), reused from there.
 
 
-def _pairwise_result(self_correct: bool, other_correct: bool) -> float:
-    if self_correct == other_correct:
-        return 0.5
-    return 1.0 if self_correct else 0.0
-
-
-def _award_elo_milestone(account_id: str, tier: int, bonus_coins: int) -> None:
+def award_elo_milestone(account_id: str, tier: int, bonus_beths: int) -> None:
     with get_connection() as connection:
         connection.execute(
-            "INSERT INTO elo_milestone_awards (id, account_id, tier, bonus_coins, awarded_at) VALUES (?, ?, ?, ?, ?)",
-            (_new_id("milestone"), account_id, tier, bonus_coins, _utcnow()),
+            "INSERT INTO elo_milestone_awards (id, account_id, tier, bonus_beths, awarded_at) VALUES (?, ?, ?, ?, ?)",
+            (_new_id("milestone"), account_id, tier, bonus_beths, _utcnow()),
         )
         connection.commit()
-
-
-def _apply_elo_and_milestones(prediction: CustomPrediction) -> None:
-    """Recalculate elo for every voter of a just-resolved prediction, then award any
-    elo-tier coin milestones crossed (see `specs/006-elo/research.md` Decisions 2 and 5).
-    """
-    votes = list_votes(prediction.id)
-    accounts = {vote.account_id: get_account_by_id(vote.account_id) for vote in votes}
-    accounts = {account_id: account for account_id, account in accounts.items() if account is not None}
-    # Snapshot every voter's elo and correctness before any update: each voter's virtual
-    # round-robin duels must be computed against everyone else's *pre-resolution* elo, not
-    # partially-updated values from earlier iterations of this same loop.
-    elo_before = {account_id: account.profile.elo for account_id, account in accounts.items()}
-    correct_before = {vote.account_id: vote.option == prediction.resolved_option for vote in votes}
-
-    for vote in votes:
-        account = accounts.get(vote.account_id)
-        if account is None:
-            continue
-        is_correct = correct_before[vote.account_id]
-        pairwise_results = [
-            (elo_before[other.account_id], _pairwise_result(is_correct, correct_before[other.account_id]))
-            for other in votes
-            if other.account_id != vote.account_id and other.account_id in accounts
-        ]
-        if not pairwise_results:
-            continue
-
-        profile = account.profile
-        new_elo = elo.resolve_group_update(profile.elo, pairwise_results, profile.predictions_resolved)
-        profile.predictions_resolved += 1
-
-        if profile.highest_elo_milestone < 0:
-            profile.highest_elo_milestone = elo.milestone_tier(profile.elo)
-
-        profile.elo = new_elo
-        new_tier = elo.milestone_tier(new_elo)
-        tier = profile.highest_elo_milestone + elo.ELO_TIER_SIZE
-        while tier <= new_tier:
-            profile.coins += elo.COINS_PER_ELO_TIER
-            _award_elo_milestone(account.id, tier, elo.COINS_PER_ELO_TIER)
-            tier += elo.ELO_TIER_SIZE
-        profile.highest_elo_milestone = max(profile.highest_elo_milestone, new_tier)
-
-        save_account_state(account)
 
 
 def list_unseen_elo_milestones(account_id: str) -> list[dict]:
@@ -702,7 +652,7 @@ def list_unseen_elo_milestones(account_id: str) -> list[dict]:
             (account_id,),
         ).fetchall()
     return [
-        {"tier": row["tier"], "bonusCoins": row["bonus_coins"], "awardedAt": row["awarded_at"]}
+        {"tier": row["tier"], "bonusBeths": row["bonus_beths"], "awardedAt": row["awarded_at"]}
         for row in rows
     ]
 

@@ -7,7 +7,7 @@ type ProfileSummaryProps = {
   identifier?: string;
   avatarUrl: string;
   elo: number;
-  coins: number;
+  beths: number;
   rankLabel: string;
   winRate: string;
   streak: string;
@@ -16,7 +16,7 @@ type ProfileSummaryProps = {
   changingAvatar?: boolean;
 };
 
-// Elo and coins are the two numbers this feature (006-elo) most wants a user to notice at a
+// Elo and Beths are the two numbers this feature (006-elo) most wants a user to notice at a
 // glance, so they get their own prominent EconomyBadges row instead of blending into the
 // small secondary stat row below (win rate / streak).
 
@@ -25,7 +25,7 @@ export function ProfileSummary({
   identifier,
   avatarUrl,
   elo,
-  coins,
+  beths,
   rankLabel,
   winRate,
   streak,
@@ -62,7 +62,7 @@ export function ProfileSummary({
         <Text style={styles.label}>{rankLabel}</Text>
         <Text style={styles.bio}>{bio}</Text>
       </View>
-      <EconomyBadges elo={elo} coins={coins} size="lg" />
+      <EconomyBadges elo={elo} beths={beths} size="lg" />
       <View style={styles.statsRow}>
         <Stat label="Win rate" value={winRate} />
         <Stat label="Streak" value={streak} />

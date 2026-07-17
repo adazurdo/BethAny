@@ -4,16 +4,20 @@ export type AccountProfile = {
   displayName: string;
   avatarUrl: string;
   elo: number;
-  coins: number;
+  beths: number;
+  bethsLastGrantAt: string;
   rankLabel: string;
   winRate: string;
   streak: string;
   bio: string;
+  eloBetsSettled: number;
+  eloBetsCountedToday: number;
+  eloBetsCountedDate: string;
 };
 
 export type EloMilestoneAward = {
   tier: number;
-  bonusCoins: number;
+  bonusBeths: number;
   awardedAt: string;
 };
 

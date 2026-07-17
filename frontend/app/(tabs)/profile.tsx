@@ -142,7 +142,7 @@ export default function ProfileScreen() {
       {unseenMilestones.map((milestone) => (
         <View key={milestone.tier} style={styles.milestoneBanner}>
           <Text style={styles.milestoneText}>
-            ¡Has alcanzado {milestone.tier} de Elo! +{milestone.bonusCoins} coins
+            ¡Has alcanzado {milestone.tier} de Elo! +{milestone.bonusBeths} Beths
           </Text>
           <Pressable onPress={handleDismissMilestones} disabled={dismissingMilestones} style={styles.milestoneDismiss}>
             {dismissingMilestones ? (

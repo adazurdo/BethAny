@@ -46,9 +46,9 @@ An apuesta already placed by an account — either `simple` (one selection) or `
 - `id`
 - `account_id`: owning account
 - `bet_type`: `simple` or `combinada`
-- `stake`: amount entered by the user (as of `006-elo`, debited from the account's coins balance on placement — no longer purely illustrative)
+- `stake`: amount entered by the user (as of `006-elo`, debited from the account's Beths balance on placement, capped at 1000 — no longer purely illustrative)
 - `combined_odds`: the selection's own odds for a `simple` bet, or the sum of every selection's odds for a `combinada` (a deliberate simplification vs. a real bookmaker's product — see `spec.md` Amendment, 2026-07-16)
-- `potential_winnings`: `stake * combined_odds`, rounded to 2 decimals; credited to the coins balance on a winning settlement (`006-elo`)
+- `potential_winnings`: `stake * combined_odds`, rounded to 2 decimals; credited to the Beths balance on a winning settlement (`006-elo`)
 - `status`: `"realizada"` (pending) until settled, then `"ganada"` or `"perdida"` (`006-elo` added the settlement step; see `specs/006-elo/data-model.md`)
 - `settled_at`: timestamp of settlement, `None` while pending (`006-elo`)
 - `created_at`

@@ -13,24 +13,36 @@ class AccountProfile:
     win_rate: str
     streak: str
     bio: str
-    coins: int = 500
-    coins_last_grant_at: str = ""
-    predictions_resolved: int = 0
+    beths: int = 500
+    beths_last_grant_at: str = ""
     # -1 = not yet initialized; social_repository lazily sets it to elo.milestone_tier(elo)
     # on first use, so accounts with a manually-edited elo (pre-this-feature) or that never
-    # resolved a prediction yet bootstrap from their actual current elo, not an assumed one.
+    # settled a bet yet bootstrap from their actual current elo, not an assumed one.
     highest_elo_milestone: int = -1
+    # Lifetime count of bets that moved Elo (used as the k_factor "games played" tier) and
+    # today's running count against elo.DAILY_ELO_COUNTED_BETS, keyed by UTC date so it
+    # resets automatically the first settlement of a new day.
+    elo_bets_settled: int = 0
+    elo_bets_counted_today: int = 0
+    elo_bets_counted_date: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "displayName": self.display_name,
             "avatarUrl": self.avatar_url,
             "elo": self.elo,
-            "coins": self.coins,
+            "beths": self.beths,
+            "bethsLastGrantAt": self.beths_last_grant_at,
             "rankLabel": self.rank_label,
             "winRate": self.win_rate,
             "streak": self.streak,
             "bio": self.bio,
+            # Exposed so the client can preview a bet's Elo impact before placing it
+            # (k_factor tier + today's remaining Elo-counted-bets budget), without a
+            # round trip: see frontend/data/eloPreview.ts, mirrors backend/bethany_mock/elo.py.
+            "eloBetsSettled": self.elo_bets_settled,
+            "eloBetsCountedToday": self.elo_bets_counted_today,
+            "eloBetsCountedDate": self.elo_bets_counted_date,
         }
 
 
@@ -177,7 +189,7 @@ class EloMilestoneAward:
     id: str
     account_id: str
     tier: int
-    bonus_coins: int
+    bonus_beths: int
     awarded_at: str
 
     def to_dict(self) -> dict[str, Any]:
@@ -291,7 +303,7 @@ def create_default_profile(display_name: str | None = None) -> AccountProfile:
         win_rate="68% win rate",
         streak="5 wins in a row",
         bio="Competitive predictor with a sharp eye for football, tennis, and esports.",
-        coins=500,
+        beths=500,
     )
     return profile
 

@@ -164,7 +164,7 @@ def initialize_database() -> None:
                 id TEXT PRIMARY KEY,
                 account_id TEXT NOT NULL,
                 tier INTEGER NOT NULL,
-                bonus_coins INTEGER NOT NULL,
+                bonus_beths INTEGER NOT NULL,
                 awarded_at TEXT NOT NULL,
                 FOREIGN KEY(account_id) REFERENCES accounts(id) ON DELETE CASCADE
             )
@@ -174,6 +174,8 @@ def initialize_database() -> None:
         # persisting or querying it) — both are added here for the settlement work in 006-elo.
         _ensure_column(connection, "placed_bets", "status", "TEXT NOT NULL DEFAULT 'realizada'")
         _ensure_column(connection, "placed_bets", "settled_at", "TEXT")
+        _ensure_column(connection, "account_state", "friends_json", "TEXT NOT NULL DEFAULT '[]'")
+        _rename_column(connection, "elo_milestone_awards", "bonus_coins", "bonus_beths")
         connection.commit()
 
 
@@ -187,6 +189,13 @@ def _ensure_column(connection: sqlite3.Connection, table: str, column: str, colu
     existing_columns = {row["name"] for row in connection.execute(f"PRAGMA table_info({table})")}
     if column not in existing_columns:
         connection.execute(f"ALTER TABLE {table} ADD COLUMN {column} {column_type}")
+
+
+def _rename_column(connection: sqlite3.Connection, table: str, old_name: str, new_name: str) -> None:
+    """Rename `old_name` to `new_name` in `table` if the old column still exists."""
+    existing_columns = {row["name"] for row in connection.execute(f"PRAGMA table_info({table})")}
+    if old_name in existing_columns and new_name not in existing_columns:
+        connection.execute(f"ALTER TABLE {table} RENAME COLUMN {old_name} TO {new_name}")
 
 
 def dumps(value: Any) -> str:

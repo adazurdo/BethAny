@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from "react-native";
 import { colors, radii, spacing, fontSizes } from "../../../theme";
 import { fetchMyBets, PlacedBet } from "../../../data/bets";
+import { BethsIcon } from "../../../components/BethsIcon";
 
 const OUTCOME_LABELS: Record<string, string> = {
   local: "Local",
@@ -83,7 +84,10 @@ export default function MyBetsScreen() {
 
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Importe</Text>
-            <Text style={styles.summaryValue}>{bet.stake.toFixed(2)} €</Text>
+            <View style={styles.summaryValueRow}>
+              <Text style={styles.summaryValue}>{bet.stake.toFixed(2)}</Text>
+              <BethsIcon size={12} color={colors.text} />
+            </View>
           </View>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Cuota{bet.betType === "combinada" ? " combinada" : ""}</Text>
@@ -91,7 +95,10 @@ export default function MyBetsScreen() {
           </View>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Ganancia potencial</Text>
-            <Text style={styles.summaryValueHighlight}>{bet.potentialWinnings.toFixed(2)} €</Text>
+            <View style={styles.summaryValueRow}>
+              <Text style={styles.summaryValueHighlight}>{bet.potentialWinnings.toFixed(2)}</Text>
+              <BethsIcon size={12} color={colors.accent} />
+            </View>
           </View>
         </View>
       ))}
@@ -185,6 +192,11 @@ const styles = StyleSheet.create({
   },
   summaryLabel: {
     color: colors.muted,
+  },
+  summaryValueRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
   },
   summaryValue: {
     color: colors.text,

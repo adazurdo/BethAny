@@ -2,6 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 import { useAuth } from "./AuthContext";
 import type { BetSelection } from "../data/auth";
 import { BetOutcome, placeCombinadaBet, placeSimpleBets } from "../data/bets";
+import { eloBetsRemainingToday, EloPreview, previewEloDelta, quickStakeOptions, QuickStakeOption } from "../data/eloPreview";
 
 type Selection = {
   id: string;
@@ -39,14 +40,17 @@ type BetSlipContextValue = {
   placeError: string | null;
   placeSimple: () => Promise<boolean>;
   placeCombinada: () => Promise<boolean>;
+  eloPreview: (odds: number, stakeRaw: string) => EloPreview | null;
+  eloRemainingToday: number;
+  quickStakeOptions: (odds: number) => QuickStakeOption[];
 };
 
 const OUTCOMES: BetOutcome[] = ["local", "empate", "visitante"];
 
 function describePlaceError(err: unknown): string {
   const message = err instanceof Error ? err.message : "";
-  if (message === "insufficient coins balance") {
-    return "No tienes coins suficientes para esta apuesta.";
+  if (message === "insufficient beths balance") {
+    return "No tienes Beths suficientes para esta apuesta.";
   }
   return message || "No se pudo realizar la apuesta.";
 }
@@ -152,6 +156,31 @@ export function BetSlipProvider({ children }: { children: React.ReactNode }) {
 
   const canCombine = selections.length >= 2;
 
+  const eloRemainingToday = useMemo(() => {
+    const profile = account?.profile;
+    if (!profile) return 0;
+    return eloBetsRemainingToday(profile.eloBetsCountedToday, profile.eloBetsCountedDate);
+  }, [account?.profile.eloBetsCountedToday, account?.profile.eloBetsCountedDate]);
+
+  const eloPreview = useCallback(
+    (odds: number, stakeRaw: string): EloPreview | null => {
+      const profile = account?.profile;
+      const stake = Number(stakeRaw);
+      if (!profile || !Number.isFinite(stake) || stake <= 0) return null;
+      return previewEloDelta(profile.elo, profile.eloBetsSettled, odds, stake);
+    },
+    [account?.profile.elo, account?.profile.eloBetsSettled]
+  );
+
+  const getQuickStakeOptions = useCallback(
+    (odds: number): QuickStakeOption[] => {
+      const profile = account?.profile;
+      if (!profile) return [];
+      return quickStakeOptions(profile.elo, profile.eloBetsSettled, odds);
+    },
+    [account?.profile.elo, account?.profile.eloBetsSettled]
+  );
+
   const combinedOdds = useMemo(() => {
     if (selections.length < 2) return null;
     // Combined odds are the sum of every leg's odds (not the product).
@@ -228,6 +257,9 @@ export function BetSlipProvider({ children }: { children: React.ReactNode }) {
         placeError,
         placeSimple,
         placeCombinada,
+        eloPreview,
+        eloRemainingToday,
+        quickStakeOptions: getQuickStakeOptions,
       }}
     >
       {children}
