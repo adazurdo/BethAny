@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shutil
 import signal
 import subprocess
 import sys
@@ -42,7 +43,10 @@ def main() -> int:
         [sys.executable, str(ROOT_DIR / "backend" / "scripts" / "run_local_api.py")],
         cwd=str(ROOT_DIR),
     )
-    frontend = subprocess.Popen(["npm", "--prefix", "frontend", "start"], cwd=str(ROOT_DIR))
+    npm_executable = shutil.which("npm")
+    if npm_executable is None:
+        raise RuntimeError("npm executable not found on PATH")
+    frontend = subprocess.Popen([npm_executable, "--prefix", "frontend", "start"], cwd=str(ROOT_DIR))
 
     processes["backend"] = backend
     processes["frontend"] = frontend
