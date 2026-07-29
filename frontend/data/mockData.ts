@@ -8,15 +8,6 @@ export type MockEvent = {
   tone: string;
 };
 
-export type RankingEntry = {
-  id: string;
-  position: number;
-  displayName: string;
-  elo: number;
-  trend: "up" | "down" | "stable";
-  badge: string;
-};
-
 export type MockProfile = {
   id: string;
   displayName: string;
@@ -106,13 +97,6 @@ export const mockEvents: MockEvent[] = [
     featured: true,
     tone: "fire",
   },
-];
-
-export const globalRanking: RankingEntry[] = [
-  { id: "rank-1", position: 1, displayName: "Luna", elo: 1842, trend: "up", badge: "Hot streak" },
-  { id: "rank-2", position: 2, displayName: "Maks", elo: 1810, trend: "stable", badge: "All-rounder" },
-  { id: "rank-3", position: 3, displayName: "BethAny", elo: 1796, trend: "up", badge: "Climbing" },
-  { id: "rank-4", position: 4, displayName: "Nina", elo: 1764, trend: "down", badge: "Top 5" },
 ];
 
 export const mockProfile: MockProfile = {

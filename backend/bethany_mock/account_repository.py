@@ -158,6 +158,13 @@ def get_account_by_identifier(identifier: str) -> UserAccount | None:
     return _row_to_account(row) if row else None
 
 
+def list_all_accounts() -> list[UserAccount]:
+    initialize_repository()
+    with get_connection() as connection:
+        rows = connection.execute("SELECT * FROM accounts WHERE status = 'active'").fetchall()
+    return [_row_to_account(row) for row in rows]
+
+
 def register_account(identifier: str, password: str, display_name: str | None = None) -> UserAccount:
     initialize_repository()
     cleaned_identifier = identifier.strip().lower()

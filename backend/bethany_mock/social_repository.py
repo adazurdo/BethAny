@@ -251,6 +251,59 @@ def is_friend(account_id: str, other_account_id: str) -> bool:
     return row is not None
 
 
+def get_relationship(requester_account_id: str, other_account_id: str) -> str:
+    """One of "friend", "outgoing", "incoming", or "none" — the same classification
+    `search_accounts` computes inline, factored out so `build_account_profile`
+    (profile.py) can reuse it without duplicating the pending-request lookup."""
+    if is_friend(requester_account_id, other_account_id):
+        return "friend"
+    existing = _find_request_between(requester_account_id, other_account_id)
+    if existing is None:
+        return "none"
+    if existing.requester_account_id == requester_account_id:
+        return "outgoing"
+    return "incoming"
+
+
+def search_accounts(requester_account_id: str, query: str, limit: int = 15) -> list[dict]:
+    """Look up accounts by a partial, case-insensitive match on `identifier` — the same
+    field `send_friend_request` already requires an exact match on, so any result this
+    returns is guaranteed to work if passed straight to it. A query under 2 characters
+    returns nothing rather than dumping a large chunk of the accounts table."""
+    cleaned = query.strip().lower()
+    if len(cleaned) < 2:
+        return []
+
+    with get_connection() as connection:
+        rows = connection.execute(
+            """
+            SELECT * FROM accounts
+            WHERE status = 'active' AND id != ? AND identifier LIKE ?
+            ORDER BY identifier
+            LIMIT ?
+            """,
+            (requester_account_id, f"%{cleaned}%", limit),
+        ).fetchall()
+
+    results: list[dict] = []
+    for row in rows:
+        account = get_account_by_id(row["id"])
+        if account is None:
+            continue
+        relationship = get_relationship(requester_account_id, account.id)
+        results.append(
+            {
+                "accountId": account.id,
+                "identifier": account.identifier,
+                "displayName": account.profile.display_name,
+                "avatarUrl": account.profile.avatar_url,
+                "elo": account.profile.elo,
+                "relationship": relationship,
+            }
+        )
+    return results
+
+
 def remove_friend(account_id: str, friend_account_id: str) -> None:
     with get_connection() as connection:
         cursor = connection.execute(
@@ -687,6 +740,7 @@ def serialize_group_detail(group: PredictionGroup, requester_account_id: str) ->
         pending_invites.append({"id": invite.id, "accountId": invitee.id, "displayName": invitee.profile.display_name})
 
     correct_counts = {member["accountId"]: 0 for member in members}
+    now = _parse_timestamp(_utcnow())
     predictions = []
     for prediction in list_predictions(group.id):
         votes = list_votes(prediction.id)
@@ -712,6 +766,13 @@ def serialize_group_detail(group: PredictionGroup, requester_account_id: str) ->
                 "createdAt": prediction.created_at,
                 "closesAt": prediction.closes_at,
                 "status": prediction.status,
+                # `status` only ever changes via an explicit resolve/abort by the group owner
+                # (see resolve_prediction/abort_prediction) — voting is already blocked past
+                # closesAt (see cast_vote), but a still-"open" prediction whose window has
+                # simply elapsed needs its own signal so the UI can stop inviting votes and
+                # stop showing a closing date that's already in the past, without the owner
+                # having to resolve/abort it first.
+                "isClosed": prediction.status == "open" and now >= _parse_timestamp(prediction.closes_at),
                 "resolvedOption": prediction.resolved_option,
                 "resolvedAt": prediction.resolved_at,
                 "votes": tally,

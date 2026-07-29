@@ -43,6 +43,7 @@ const iconMap = {
   wallet: "wallet-outline",
   settings: "settings-outline",
   logout: "log-out-outline",
+  shield: "shield-outline",
 } as const;
 
 type IconName = keyof typeof iconMap;

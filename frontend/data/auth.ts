@@ -1,3 +1,4 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Platform } from "react-native";
 
 export type AccountProfile = {
@@ -45,13 +46,15 @@ export type AuthAccount = {
 
 type AuthResponse = AuthAccount & { sessionToken: string };
 
-// Per-tab/per-app-instance session token, kept in memory only (matches the app's existing
-// "log in again after a reload" behavior — see AuthContext, which never restores `account`
-// on mount either). The backend used to track a single global "active account" instead of a
-// token per login, so logging in from a second device silently hijacked every other device's
-// session — exactly the scenario the friends feature needs to test, since it requires two
-// real accounts logged in at once. This token is what fixes that.
+// Per-account-login session token. The backend used to track a single global "active
+// account" instead of a token per login, so logging in from a second device silently
+// hijacked every other device's session — exactly the scenario the friends feature needs
+// to test, since it requires two real accounts logged in at once. This token is what fixes
+// that. It's kept in memory for the lifetime of the app (every request reads this variable
+// directly, synchronously) AND mirrored to AsyncStorage so `restoreSession` can bring it
+// back after a reload/restart without asking the user to log in again every time.
 let sessionToken: string | null = null;
+const SESSION_TOKEN_STORAGE_KEY = "bethany_session_token";
 
 export type AuthCredentials = {
   identifier: string;
@@ -116,12 +119,22 @@ export function getApiUrl() {
   return API_URL;
 }
 
+async function persistSessionToken(token: string) {
+  sessionToken = token;
+  try {
+    await AsyncStorage.setItem(SESSION_TOKEN_STORAGE_KEY, token);
+  } catch {
+    // Storage can fail (private browsing, quota...); the token still works for this
+    // in-memory session, it just won't survive a reload. Not worth surfacing as an error.
+  }
+}
+
 export async function registerAccount(credentials: AuthCredentials) {
   const response = await requestJson<AuthResponse>("/auth/register", {
     method: "POST",
     body: JSON.stringify(credentials),
   });
-  sessionToken = response.sessionToken;
+  await persistSessionToken(response.sessionToken);
   return response;
 }
 
@@ -130,7 +143,7 @@ export async function loginAccount(credentials: AuthCredentials) {
     method: "POST",
     body: JSON.stringify(credentials),
   });
-  sessionToken = response.sessionToken;
+  await persistSessionToken(response.sessionToken);
   return response;
 }
 
@@ -141,6 +154,20 @@ export async function logoutAccount() {
     });
   } finally {
     sessionToken = null;
+    await AsyncStorage.removeItem(SESSION_TOKEN_STORAGE_KEY).catch(() => {});
+  }
+}
+
+// Called once at app boot (see AuthContext) to bring back a token saved from a previous
+// session, before we know yet whether it's still valid server-side — the caller must still
+// try `loadCurrentAccount()` and treat a 401 as "session expired, clear it and show login".
+export async function restoreSession(): Promise<string | null> {
+  try {
+    const stored = await AsyncStorage.getItem(SESSION_TOKEN_STORAGE_KEY);
+    sessionToken = stored;
+    return stored;
+  } catch {
+    return null;
   }
 }
 

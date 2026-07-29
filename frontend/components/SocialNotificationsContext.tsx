@@ -1,4 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { listMyChallenges } from "../data/challenges";
 import { GroupSummary, listFriends, listGroups, listIncomingGroupInvites } from "../data/social";
 import { useAuth } from "./AuthContext";
 
@@ -8,11 +9,13 @@ type SocialNotificationsValue = {
   hasNotifications: boolean;
   friendRequestCount: number;
   groupInviteCount: number;
+  challengeCount: number;
   groupsWithUpdate: string[];
   hasGroupUpdate: (groupId: string) => boolean;
   refresh: () => Promise<void>;
   setFriendRequestCount: (count: number) => void;
   setGroupInviteCount: (count: number) => void;
+  setChallengeCount: (count: number) => void;
   syncGroups: (groups: GroupSummary[]) => void;
   clearGroupUpdate: (groupId: string) => void;
 };
@@ -23,6 +26,7 @@ export function SocialNotificationsProvider({ children }: { children: React.Reac
   const { isAuthenticated } = useAuth();
   const [friendRequestCount, setFriendRequestCount] = useState(0);
   const [groupInviteCount, setGroupInviteCount] = useState(0);
+  const [challengeCount, setChallengeCount] = useState(0);
   const [groupsWithUpdate, setGroupsWithUpdate] = useState<string[]>([]);
 
   const syncGroups = useCallback((groups: GroupSummary[]) => {
@@ -30,13 +34,15 @@ export function SocialNotificationsProvider({ children }: { children: React.Reac
   }, []);
 
   const refresh = useCallback(async () => {
-    const [friendState, groupsResult, invitesResult] = await Promise.all([
+    const [friendState, groupsResult, invitesResult, challengesResult] = await Promise.all([
       listFriends(),
       listGroups(),
       listIncomingGroupInvites(),
+      listMyChallenges(),
     ]);
     setFriendRequestCount(friendState.incomingRequests.length);
     setGroupInviteCount(invitesResult.invites.length);
+    setChallengeCount(challengesResult.incoming.length);
     syncGroups(groupsResult.groups);
   }, [syncGroups]);
 
@@ -44,6 +50,7 @@ export function SocialNotificationsProvider({ children }: { children: React.Reac
     if (!isAuthenticated) {
       setFriendRequestCount(0);
       setGroupInviteCount(0);
+      setChallengeCount(0);
       setGroupsWithUpdate([]);
       return;
     }
@@ -60,18 +67,20 @@ export function SocialNotificationsProvider({ children }: { children: React.Reac
     () => ({
       hasFriendRequests: friendRequestCount > 0,
       hasGroupInvites: groupInviteCount > 0,
-      hasNotifications: friendRequestCount > 0 || groupInviteCount > 0 || groupsWithUpdate.length > 0,
+      hasNotifications: friendRequestCount > 0 || groupInviteCount > 0 || challengeCount > 0 || groupsWithUpdate.length > 0,
       friendRequestCount,
       groupInviteCount,
+      challengeCount,
       groupsWithUpdate,
       hasGroupUpdate: (groupId: string) => groupsWithUpdate.includes(groupId),
       refresh,
       setFriendRequestCount,
       setGroupInviteCount,
+      setChallengeCount,
       syncGroups,
       clearGroupUpdate,
     }),
-    [friendRequestCount, groupInviteCount, groupsWithUpdate, refresh, syncGroups, clearGroupUpdate],
+    [friendRequestCount, groupInviteCount, challengeCount, groupsWithUpdate, refresh, syncGroups, clearGroupUpdate],
   );
 
   return <SocialNotificationsContext.Provider value={value}>{children}</SocialNotificationsContext.Provider>;

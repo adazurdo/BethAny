@@ -6,7 +6,7 @@ import secrets
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 
 from .account_repository import (
     authenticate_account,
@@ -15,6 +15,7 @@ from .account_repository import (
     register_account,
     replace_account_state,
 )
+from .activity import build_activity_feed
 from .bet_repository import (
     initialize_repository as initialize_bet_repository,
     list_placed_bets,
@@ -39,6 +40,8 @@ from .mock_dataset_repository import (
 from .mock_dataset_service import sync_competition
 from .models import AccountProfile, BetRecord
 from .odds import generate_match_odds
+from .profile import build_account_profile
+from .ranking import build_global_ranking
 from .social_repository import (
     ConflictError,
     abort_prediction,
@@ -58,6 +61,7 @@ from .social_repository import (
     resolve_prediction,
     respond_friend_request,
     respond_group_invite,
+    search_accounts,
     send_friend_request,
     serialize_group_detail,
 )
@@ -123,6 +127,11 @@ def _friend_state_with_head_to_head(account_id: str) -> dict[str, Any]:
 
 def _split_path(path: str) -> list[str]:
     return [segment for segment in urlsplit(path).path.split("/") if segment]
+
+
+def _query_param(path: str, name: str) -> str:
+    values = parse_qs(urlsplit(path).query).get(name, [])
+    return values[0] if values else ""
 
 
 def _coerce_profile(payload: dict[str, Any]) -> AccountProfile:
@@ -197,6 +206,14 @@ class BethanyRequestHandler(BaseHTTPRequestHandler):
             if account_id is None:
                 return
             _json_response(self, HTTPStatus.OK, _friend_state_with_head_to_head(account_id))
+            return
+
+        if segments == ["social", "friends", "search"]:
+            account_id = self._require_session()
+            if account_id is None:
+                return
+            query = _query_param(self.path, "q")
+            _json_response(self, HTTPStatus.OK, {"results": search_accounts(account_id, query)})
             return
 
         if segments == ["social", "groups", "invites"]:
@@ -276,6 +293,31 @@ class BethanyRequestHandler(BaseHTTPRequestHandler):
             if account_id is None:
                 return
             _json_response(self, HTTPStatus.OK, list_challenges_for_account(account_id))
+            return
+
+        if segments == ["ranking"]:
+            account_id = self._require_session()
+            if account_id is None:
+                return
+            _json_response(self, HTTPStatus.OK, {"ranking": build_global_ranking()})
+            return
+
+        if segments == ["activity"]:
+            account_id = self._require_session()
+            if account_id is None:
+                return
+            _json_response(self, HTTPStatus.OK, {"activity": build_activity_feed(account_id)})
+            return
+
+        if len(segments) == 3 and segments[0] == "accounts" and segments[2] == "profile":
+            account_id = self._require_session()
+            if account_id is None:
+                return
+            profile = build_account_profile(account_id, segments[1])
+            if profile is None:
+                _json_response(self, HTTPStatus.NOT_FOUND, {"error": "account not found"})
+                return
+            _json_response(self, HTTPStatus.OK, profile)
             return
 
         _json_response(self, HTTPStatus.NOT_FOUND, {"error": "not found"})

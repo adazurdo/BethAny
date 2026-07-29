@@ -23,6 +23,7 @@ import {
   resolveCustomChallenge,
 } from "../../data/challenges";
 import {
+  AccountSearchResult,
   FriendRequest,
   FriendState,
   GroupSummary,
@@ -37,6 +38,7 @@ import {
   rejectFriendRequest,
   rejectGroupInvite,
   removeFriend,
+  searchAccounts,
   sendFriendRequest,
 } from "../../data/social";
 
@@ -59,7 +61,7 @@ function sortFriends(friends: SocialFriend[], sort: FriendSortOption): SocialFri
 export default function SocialScreen() {
   const router = useRouter();
   const { account } = useAuth();
-  const { setFriendRequestCount, setGroupInviteCount, syncGroups, hasGroupUpdate } = useSocialNotifications();
+  const { setFriendRequestCount, setGroupInviteCount, setChallengeCount, syncGroups, hasGroupUpdate } = useSocialNotifications();
 
   const [friendState, setFriendState] = useState<FriendState>({ friends: [], incomingRequests: [], outgoingRequests: [] });
   const [groups, setGroups] = useState<GroupSummary[]>([]);
@@ -70,9 +72,11 @@ export default function SocialScreen() {
   const [challengeError, setChallengeError] = useState<string | null>(null);
 
   const [sort, setSort] = useState<FriendSortOption>("eloDesc");
-  const [identifier, setIdentifier] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<AccountSearchResult[]>([]);
+  const [searching, setSearching] = useState(false);
   const [friendError, setFriendError] = useState<string | null>(null);
-  const [sendingRequest, setSendingRequest] = useState(false);
+  const [sendingToAccountId, setSendingToAccountId] = useState<string | null>(null);
 
   const [groupModalVisible, setGroupModalVisible] = useState(false);
   const [challengeModalVisible, setChallengeModalVisible] = useState(false);
@@ -102,7 +106,9 @@ export default function SocialScreen() {
     // friends/groups, which already loaded fine — it only surfaces inside the Retos section.
     listMyChallenges()
       .then((result) => {
-        if (!cancelled) setChallenges(result);
+        if (cancelled) return;
+        setChallenges(result);
+        setChallengeCount(result.incoming.length);
       })
       .catch((err) => {
         if (!cancelled) setChallengeError(err instanceof Error ? err.message : "No se pudieron cargar los retos.");
@@ -116,7 +122,9 @@ export default function SocialScreen() {
 
   async function refreshChallenges() {
     try {
-      setChallenges(await listMyChallenges());
+      const result = await listMyChallenges();
+      setChallenges(result);
+      setChallengeCount(result.incoming.length);
     } catch (err) {
       setChallengeError(err instanceof Error ? err.message : "No se pudieron actualizar los retos.");
     }
@@ -164,21 +172,38 @@ export default function SocialScreen() {
 
   const sortedFriends = useMemo(() => sortFriends(friendState.friends, sort), [friendState.friends, sort]);
 
-  async function handleSendRequest() {
-    if (!identifier.trim()) {
-      setFriendError("Introduce el identificador de un amigo.");
+  // Debounced live search: waits for a short pause in typing before hitting the backend,
+  // so fast typing doesn't fire a request per keystroke.
+  useEffect(() => {
+    const query = searchQuery.trim();
+    if (query.length < 2) {
+      setSearchResults([]);
+      setSearching(false);
       return;
     }
-    setSendingRequest(true);
+    setSearching(true);
+    const timeout = setTimeout(() => {
+      searchAccounts(query)
+        .then((results) => setSearchResults(results))
+        .catch((err) => setFriendError(err instanceof Error ? err.message : "No se pudo buscar cuentas."))
+        .finally(() => setSearching(false));
+    }, 300);
+    return () => clearTimeout(timeout);
+  }, [searchQuery]);
+
+  async function handleSendRequestTo(target: AccountSearchResult) {
+    setSendingToAccountId(target.accountId);
     setFriendError(null);
     try {
-      const result = await sendFriendRequest(identifier.trim());
+      const result = await sendFriendRequest(target.identifier);
       setFriendState(result);
-      setIdentifier("");
+      setSearchResults((current) =>
+        current.map((item) => (item.accountId === target.accountId ? { ...item, relationship: "outgoing" } : item))
+      );
     } catch (err) {
       setFriendError(err instanceof Error ? err.message : "No se pudo enviar la solicitud.");
     } finally {
-      setSendingRequest(false);
+      setSendingToAccountId(null);
     }
   }
 
@@ -405,27 +430,69 @@ export default function SocialScreen() {
 
       <SectionCard
         title="Amigos"
-        subtitle="Envia una solicitud por identificador de cuenta; el otro usuario debe aceptarla"
+        subtitle="Busca por identificador de cuenta; el otro usuario debe aceptar tu solicitud"
         icon="friends"
         accentColor={colors.teal}
       >
-        <View style={styles.addFriendRow}>
+        <View style={styles.searchRow}>
+          <Icon glyph="social" size={16} color={colors.muted} />
           <TextInput
-            style={styles.addFriendInput}
-            placeholder="Identificador de cuenta"
+            style={styles.searchInput}
+            placeholder="Buscar por identificador (min. 2 letras)"
             placeholderTextColor={colors.muted}
-            value={identifier}
-            onChangeText={setIdentifier}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
             autoCapitalize="none"
-            returnKeyType="send"
-            onSubmitEditing={() => handleSendRequest()}
           />
-          <Tappable style={styles.addFriendButton} onPress={handleSendRequest} disabled={sendingRequest}>
-            <Icon glyph="send" size={14} color={colors.background} />
-            <Text style={styles.addFriendButtonText}>{sendingRequest ? "Enviando..." : "Enviar solicitud"}</Text>
-          </Tappable>
+          {searching ? <ActivityIndicator color={colors.teal} size="small" /> : null}
         </View>
         {friendError ? <Text style={styles.friendErrorText}>{friendError}</Text> : null}
+
+        {searchQuery.trim().length >= 2 ? (
+          <View style={styles.requestGroup}>
+            {searchResults.length === 0 && !searching ? (
+              <Text style={styles.emptyText}>Nadie con ese identificador.</Text>
+            ) : (
+              searchResults.map((result) => (
+                <View key={result.accountId} style={styles.searchResultRow}>
+                  <View style={styles.requestInfo}>
+                    <Text style={styles.requestName}>{result.displayName}</Text>
+                    <Text style={styles.requestMeta}>
+                      {result.identifier} · Elo {result.elo}
+                    </Text>
+                  </View>
+                  {result.relationship === "friend" ? (
+                    <View style={styles.relationshipTag}>
+                      <Icon glyph="check" size={13} color={colors.success} />
+                      <Text style={[styles.relationshipTagText, { color: colors.success }]}>Ya sois amigos</Text>
+                    </View>
+                  ) : result.relationship === "outgoing" ? (
+                    <View style={styles.relationshipTag}>
+                      <Icon glyph="clock" size={13} color={colors.muted} />
+                      <Text style={styles.relationshipTagText}>Pendiente</Text>
+                    </View>
+                  ) : result.relationship === "incoming" ? (
+                    <View style={styles.relationshipTag}>
+                      <Icon glyph="info" size={13} color={colors.accent} />
+                      <Text style={[styles.relationshipTagText, { color: colors.accent }]}>Te ha escrito</Text>
+                    </View>
+                  ) : (
+                    <Tappable
+                      style={styles.addFriendButton}
+                      onPress={() => handleSendRequestTo(result)}
+                      disabled={sendingToAccountId === result.accountId}
+                    >
+                      <Icon glyph="send" size={13} color={colors.background} />
+                      <Text style={styles.addFriendButtonText}>
+                        {sendingToAccountId === result.accountId ? "Enviando..." : "Enviar solicitud"}
+                      </Text>
+                    </Tappable>
+                  )}
+                </View>
+              ))
+            )}
+          </View>
+        ) : null}
 
         {friendState.incomingRequests.length > 0 ? (
           <View style={styles.requestGroup}>
@@ -481,6 +548,7 @@ export default function SocialScreen() {
               challengeWins={friend.challengeWins}
               challengeLosses={friend.challengeLosses}
               onRemove={() => handleRemoveFriend(friend.accountId)}
+              onPress={() => router.push(`/profile/${friend.accountId}`)}
             />
           ))
         ) : (
@@ -554,32 +622,52 @@ const styles = StyleSheet.create({
     color: colors.background,
     fontWeight: "800",
   },
-  addFriendRow: {
+  searchRow: {
     flexDirection: "row",
+    alignItems: "center",
     gap: spacing.sm,
-  },
-  addFriendInput: {
-    flex: 1,
     backgroundColor: colors.surfaceSoft,
     borderRadius: radii.sm,
     borderWidth: 1,
     borderColor: colors.border,
     paddingHorizontal: spacing.sm,
+  },
+  searchInput: {
+    flex: 1,
     paddingVertical: 10,
     color: colors.text,
+  },
+  searchResultRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.sm,
+    paddingVertical: spacing.xs,
+  },
+  relationshipTag: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  relationshipTagText: {
+    color: colors.muted,
+    fontWeight: "700",
+    fontSize: 12,
   },
   addFriendButton: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
     backgroundColor: colors.teal,
-    borderRadius: radii.sm,
-    paddingHorizontal: spacing.md,
+    borderRadius: radii.pill,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 8,
     justifyContent: "center",
   },
   addFriendButtonText: {
     color: colors.background,
     fontWeight: "800",
+    fontSize: 12,
   },
   friendErrorText: {
     color: colors.danger,

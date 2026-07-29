@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, View } from "react-native";
 import { router } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
@@ -10,8 +10,9 @@ import { ProfileSummary } from "../../components/ProfileSummary";
 import { SectionCard } from "../../components/SectionCard";
 import { Tappable } from "../../components/Tappable";
 import { accentForKey, colors, radii, shadows, spacing } from "../../theme";
-import { globalRanking, mockProfile } from "../../data";
+import { mockProfile } from "../../data";
 import { ackEloMilestones } from "../../data/auth";
+import { fetchGlobalRanking, GlobalRankingEntry } from "../../data/ranking";
 
 type PickedImage = {
   uri: string;
@@ -28,6 +29,21 @@ export default function ProfileScreen() {
   const [cropModalVisible, setCropModalVisible] = useState(false);
   const [dismissingMilestones, setDismissingMilestones] = useState(false);
   const [editModalVisible, setEditModalVisible] = useState(false);
+  const [ranking, setRanking] = useState<GlobalRankingEntry[] | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchGlobalRanking()
+      .then((result) => {
+        if (!cancelled) setRanking(result);
+      })
+      .catch(() => {
+        if (!cancelled) setRanking([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const unseenMilestones = account?.unseenEloMilestones ?? [];
 
@@ -178,28 +194,29 @@ export default function ProfileScreen() {
         onSave={handleSaveProfile}
       />
 
-      <SectionCard title="Global ranking snapshot" subtitle="Shown here without a separate tab" icon="ranking" accentColor={colors.gold}>
+      <SectionCard title="Ranking global" subtitle="Los 3 primeros de todas las cuentas" icon="ranking" accentColor={colors.gold}>
+        {!ranking ? <ActivityIndicator color={colors.primary} /> : null}
         <View style={styles.rankingList}>
-          {globalRanking.slice(0, 3).map((entry) => {
-            const accent = entry.position === 1 ? colors.gold : accentForKey(entry.id);
+          {ranking?.slice(0, 3).map((entry) => {
+            const accent = entry.position === 1 ? colors.gold : accentForKey(entry.accountId);
             return (
-              <View key={entry.id} style={styles.row}>
+              <View key={entry.accountId} style={styles.row}>
                 <View style={[styles.rankBadge, { borderColor: accent }]}>
-                  {entry.position <= 3 ? (
-                    <Icon glyph="medal" size={14} color={accent} />
-                  ) : (
-                    <Text style={[styles.rank, { color: accent }]}>{entry.position}</Text>
-                  )}
+                  <Icon glyph="medal" size={14} color={accent} />
                 </View>
                 <View style={styles.rowText}>
                   <Text style={styles.name}>{entry.displayName}</Text>
-                  <Text style={styles.meta}>{entry.badge}</Text>
+                  <Text style={styles.meta}>{entry.rankLabel}{entry.provisional ? " · Provisional" : ""}</Text>
                 </View>
                 <Text style={styles.score}>{entry.elo}</Text>
               </View>
             );
           })}
         </View>
+        <Tappable onPress={() => router.push("/ranking")} style={styles.footerLink}>
+          <Text style={styles.footerLinkText}>Ver ranking completo</Text>
+          <Icon glyph="chevron" size={14} color={colors.gold} />
+        </Tappable>
       </SectionCard>
     </ScrollView>
   );
@@ -340,5 +357,18 @@ const styles = StyleSheet.create({
   score: {
     color: colors.text,
     fontWeight: "900",
+  },
+  footerLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    marginTop: spacing.xs,
+    paddingVertical: 6,
+  },
+  footerLinkText: {
+    color: colors.gold,
+    fontWeight: "800",
+    fontSize: 13,
   },
 });

@@ -1,5 +1,5 @@
 import { Redirect, Tabs, useRouter } from "expo-router";
-import { Pressable, StyleSheet, View } from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, View } from "react-native";
 import { useAuth } from "../../components/AuthContext";
 import { HeaderAvatar } from "../../components/HeaderAvatar";
 import Icon from "../../components/Icon";
@@ -17,8 +17,16 @@ function HeaderBackButton() {
 }
 
 export default function TabsLayout() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isInitializing } = useAuth();
   const { hasNotifications } = useSocialNotifications();
+
+  if (isInitializing) {
+    return (
+      <View style={styles.loadingScreen}>
+        <ActivityIndicator color={colors.primary} />
+      </View>
+    );
+  }
 
   if (!isAuthenticated) {
     return <Redirect href="/(auth)" />;
@@ -84,11 +92,25 @@ export default function TabsLayout() {
         name="bets/index"
         options={{ href: null, title: "Mis apuestas", headerLeft: () => <HeaderBackButton /> }}
       />
+      <Tabs.Screen
+        name="activity/index"
+        options={{ href: null, title: "Actividad", headerLeft: () => <HeaderBackButton /> }}
+      />
+      <Tabs.Screen
+        name="profile/[accountId]"
+        options={{ href: null, title: "Perfil", headerLeft: () => <HeaderBackButton /> }}
+      />
     </Tabs>
   );
 }
 
 const styles = StyleSheet.create({
+  loadingScreen: {
+    flex: 1,
+    backgroundColor: colors.background,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   headerBack: {
     paddingHorizontal: 12,
   },

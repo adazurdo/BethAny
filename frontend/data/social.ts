@@ -24,6 +24,17 @@ export type FriendState = {
   outgoingRequests: FriendRequest[];
 };
 
+export type AccountRelationship = "none" | "friend" | "outgoing" | "incoming";
+
+export type AccountSearchResult = {
+  accountId: string;
+  identifier: string;
+  displayName: string;
+  avatarUrl: string;
+  elo: number;
+  relationship: AccountRelationship;
+};
+
 export type GroupSummary = {
   id: string;
   name: string;
@@ -64,6 +75,11 @@ export type CustomPrediction = {
   createdAt: string;
   closesAt: string;
   status: PredictionStatus;
+  // True once `closesAt` has passed while `status` is still "open" — voting is already
+  // blocked server-side either way, this just tells the UI to stop inviting votes and stop
+  // showing a closing date that's already in the past, without waiting for the group owner
+  // to resolve/abort it.
+  isClosed: boolean;
   resolvedOption: string | null;
   resolvedAt: string | null;
   votes: Record<string, number>;
@@ -91,6 +107,13 @@ export type GroupDetail = {
 
 export async function listFriends() {
   return requestJson<FriendState>("/social/friends");
+}
+
+export async function searchAccounts(query: string) {
+  const payload = await requestJson<{ results: AccountSearchResult[] }>(
+    `/social/friends/search?q=${encodeURIComponent(query)}`
+  );
+  return payload.results;
 }
 
 export async function sendFriendRequest(identifier: string) {

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { useAuth } from "../../components/AuthContext";
+import { ActivityFeed } from "../../components/ActivityFeed";
 import { EconomyBadges } from "../../components/EconomyBadges";
 import { EventCard } from "../../components/EventCard";
 import { SectionCard } from "../../components/SectionCard";
@@ -10,6 +11,7 @@ import { Tappable } from "../../components/Tappable";
 import { BethsIcon } from "../../components/BethsIcon";
 import { useSocialNotifications } from "../../components/SocialNotificationsContext";
 import { accentForKey, colors, radii, spacing, shadows, fontSizes } from "../../theme";
+import { fetchActivityFeed, ActivityEvent } from "../../data/activity";
 import { fetchMyBets, PlacedBet } from "../../data/bets";
 import { CompetitionSource, MockCompetitionMatch, MockTeam, fetchMockCompetitionMatches, fetchMockCompetitions } from "../../data/mockCompetitions";
 import DesktopShell from "../../components/DesktopShell";
@@ -28,6 +30,7 @@ export default function HomeScreen() {
   const [matchesLoading, setMatchesLoading] = useState(true);
 
   const [bets, setBets] = useState<PlacedBet[] | null>(null);
+  const [activity, setActivity] = useState<ActivityEvent[] | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -71,6 +74,20 @@ export default function HomeScreen() {
       })
       .catch(() => {
         if (!cancelled) setBets([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchActivityFeed()
+      .then((result) => {
+        if (!cancelled) setActivity(result);
+      })
+      .catch(() => {
+        if (!cancelled) setActivity([]);
       });
     return () => {
       cancelled = true;
@@ -203,6 +220,11 @@ export default function HomeScreen() {
         <EconomyBadges elo={elo} beths={beths} />
         <Text style={styles.progressRank}>{rankLabel}</Text>
         <FooterLink label="Ver ranking completo" onPress={() => router.push("/ranking")} />
+      </SectionCard>
+
+      <SectionCard title="Actividad reciente" subtitle="Hitos, retos y apuestas tuyas y de tus amigos" icon="fire" accentColor={colors.pink}>
+        {!activity ? <ActivityIndicator color={colors.primary} /> : <ActivityFeed events={activity.slice(0, 4)} />}
+        <FooterLink label="Ver toda la actividad" onPress={() => router.push("/activity")} />
       </SectionCard>
 
       <SectionCard title="Actividad social" subtitle="Amigos y grupos" icon="social" accentColor={colors.teal}>

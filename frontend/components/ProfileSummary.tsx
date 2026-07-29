@@ -1,5 +1,6 @@
 import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { EconomyBadges } from "./EconomyBadges";
+import { EloTierBadge } from "./EloTierBadge";
 import { colors, radii, spacing } from "../theme";
 
 type ProfileSummaryProps = {
@@ -60,6 +61,7 @@ export function ProfileSummary({
           </View>
         ) : null}
         <Text style={styles.label}>{rankLabel}</Text>
+        <EloTierBadge elo={elo} size="md" />
         <Text style={styles.bio}>{bio}</Text>
       </View>
       <EconomyBadges elo={elo} beths={beths} size="lg" />

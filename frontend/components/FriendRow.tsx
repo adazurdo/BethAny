@@ -11,30 +11,42 @@ type FriendRowProps = {
   challengeWins: number;
   challengeLosses: number;
   onRemove: () => void;
+  onPress: () => void;
 };
 
-export function FriendRow({ accountId, displayName, avatarUrl, elo, challengeWins, challengeLosses, onRemove }: FriendRowProps) {
+export function FriendRow({
+  accountId,
+  displayName,
+  avatarUrl,
+  elo,
+  challengeWins,
+  challengeLosses,
+  onRemove,
+  onPress,
+}: FriendRowProps) {
   const accent = accentForKey(accountId);
   const hasRecord = challengeWins + challengeLosses > 0;
 
   return (
     <View style={styles.row}>
-      <Image source={{ uri: avatarUrl }} style={[styles.avatar, { borderColor: accent }]} />
-      <View style={styles.details}>
-        <Text style={styles.name}>{displayName}</Text>
-        <View style={styles.metaRow}>
-          <Icon glyph="elo" size={12} color={colors.gold} />
-          <Text style={styles.meta}>{elo}</Text>
-          {hasRecord ? (
-            <>
-              <Icon glyph="swords" size={12} color={colors.accent} />
-              <Text style={styles.meta}>
-                {challengeWins}-{challengeLosses}
-              </Text>
-            </>
-          ) : null}
+      <Tappable onPress={onPress} style={styles.identity}>
+        <Image source={{ uri: avatarUrl }} style={[styles.avatar, { borderColor: accent }]} />
+        <View style={styles.details}>
+          <Text style={styles.name}>{displayName}</Text>
+          <View style={styles.metaRow}>
+            <Icon glyph="elo" size={12} color={colors.gold} />
+            <Text style={styles.meta}>{elo}</Text>
+            {hasRecord ? (
+              <>
+                <Icon glyph="swords" size={12} color={colors.accent} />
+                <Text style={styles.meta}>
+                  {challengeWins}-{challengeLosses}
+                </Text>
+              </>
+            ) : null}
+          </View>
         </View>
-      </View>
+      </Tappable>
       <Tappable onPress={onRemove} style={styles.button}>
         <Icon glyph="remove" size={13} color={colors.danger} />
         <Text style={styles.buttonText}>Eliminar</Text>
@@ -51,6 +63,12 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
+  },
+  identity: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
   },
   avatar: {
     width: 44,

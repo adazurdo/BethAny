@@ -260,16 +260,29 @@ export default function GroupDetailScreen() {
         {group.predictions.length > 0 ? (
           group.predictions.map((prediction) => {
             const isAuthor = account?.accountId === prediction.createdByAccountId;
-            const isOpen = prediction.status === "open";
+            // The owner can still resolve/abort a prediction whose voting window has simply
+            // elapsed (status stays "open" until they act on it) — only the vote buttons care
+            // about `isClosed`, not the resolve/abort controls below.
+            const canManage = isAuthor && prediction.status === "open";
+            const canVote = prediction.status === "open" && !prediction.isClosed;
             const statusLabel =
               prediction.status === "resolved"
                 ? `Resuelta: ${prediction.resolvedOption}`
                 : prediction.status === "aborted"
                   ? "Abortada"
-                  : `Cierra: ${formatClosesAt(prediction.closesAt)}`;
+                  : prediction.isClosed
+                    ? "Cerrada"
+                    : `Cierra: ${formatClosesAt(prediction.closesAt)}`;
             const isAborted = prediction.status === "aborted";
             return (
-              <View key={prediction.id} style={[styles.predictionCard, isAborted ? styles.predictionCardAborted : null]}>
+              <View
+                key={prediction.id}
+                style={[
+                  styles.predictionCard,
+                  isAborted ? styles.predictionCardAborted : null,
+                  prediction.isClosed && !isAborted ? styles.predictionCardClosed : null,
+                ]}
+              >
                 <Text style={styles.predictionQuestion}>{prediction.question}</Text>
                 <Text style={styles.predictionStatus}>{statusLabel}</Text>
                 <View style={styles.predictionOptionsList}>
@@ -281,7 +294,7 @@ export default function GroupDetailScreen() {
                         key={option}
                         style={[styles.voteOption, isMine ? styles.voteOptionSelected : undefined]}
                         onPress={() => handleVote(prediction.id, option)}
-                        disabled={!isOpen || votingId === prediction.id}
+                        disabled={!canVote || votingId === prediction.id}
                       >
                         <View style={styles.voteOptionLabelRow}>
                           {isMine ? <Icon glyph="check" size={13} color={colors.background} /> : null}
@@ -298,7 +311,7 @@ export default function GroupDetailScreen() {
                 </View>
                 <Text style={styles.totalVotes}>{prediction.totalVotes} {prediction.totalVotes === 1 ? "voto" : "votos"}</Text>
 
-                {isAuthor && isOpen ? (
+                {canManage ? (
                   <View style={styles.resolveRow}>
                     {prediction.options.map((option) => {
                       const selected = resolveOptionByPrediction[prediction.id] === option;
@@ -487,6 +500,9 @@ const styles = StyleSheet.create({
   },
   predictionCardAborted: {
     borderBottomColor: colors.danger,
+  },
+  predictionCardClosed: {
+    borderBottomColor: colors.warning,
   },
   predictionQuestion: {
     color: colors.text,
