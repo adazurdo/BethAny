@@ -7,6 +7,8 @@ export type PlacedBetSelection = {
   matchLabel: string;
   outcome: BetOutcome;
   odds: number;
+  result: BetOutcome | null;
+  won: boolean | null;
 };
 
 export type PlacedBet = {

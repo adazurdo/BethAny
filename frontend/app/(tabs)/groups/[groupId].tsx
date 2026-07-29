@@ -4,10 +4,11 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, 
 import { Icon } from "../../../components/Icon";
 import { SectionCard } from "../../../components/SectionCard";
 import { GroupRanking } from "../../../components/GroupRanking";
+import { Tappable } from "../../../components/Tappable";
 import { useAuth } from "../../../components/AuthContext";
 import { useSocialNotifications } from "../../../components/SocialNotificationsContext";
 import { ClosingDatePicker, ClosingDateValue, closingValueToDate, defaultClosingValue } from "../../../components/ClosingDatePicker";
-import { colors, radii, spacing } from "../../../theme";
+import { colors, radii, shadows, spacing } from "../../../theme";
 import {
   GroupDetail,
   SocialFriend,
@@ -191,20 +192,33 @@ export default function GroupDetailScreen() {
 
       <Text style={styles.groupName}>{group.name}</Text>
 
-      <SectionCard title="Miembros" subtitle={`${group.members.length} ${group.members.length === 1 ? "miembro" : "miembros"}`}>
+      <SectionCard
+        title="Miembros"
+        subtitle={`${group.members.length} ${group.members.length === 1 ? "miembro" : "miembros"}`}
+        icon="friends"
+        accentColor={colors.teal}
+      >
         {group.members.map((member) => (
           <View key={member.accountId} style={styles.memberRow}>
             <Text style={styles.memberName}>{member.displayName}</Text>
-            <Text style={styles.memberElo}>Elo {member.elo}</Text>
+            <View style={styles.memberEloRow}>
+              <Icon glyph="elo" size={12} color={colors.gold} />
+              <Text style={styles.memberElo}>{member.elo}</Text>
+            </View>
           </View>
         ))}
       </SectionCard>
 
-      <SectionCard title="Ranking" subtitle="Miembros ordenados por predicciones acertadas">
+      <SectionCard title="Ranking" subtitle="Miembros ordenados por predicciones acertadas" icon="ranking" accentColor={colors.gold}>
         <GroupRanking ranking={group.ranking} />
       </SectionCard>
 
-      <SectionCard title="Invitar amigos" subtitle="Solo puedes invitar a cuentas que ya son tus amigos; deben aceptar para unirse">
+      <SectionCard
+        title="Invitar amigos"
+        subtitle="Solo puedes invitar a cuentas que ya son tus amigos; deben aceptar para unirse"
+        icon="add"
+        accentColor={colors.teal}
+      >
         {inviteError ? <Text style={styles.errorText}>{inviteError}</Text> : null}
         {group.pendingInvites.length > 0 ? (
           <View style={styles.requestGroup}>
@@ -221,7 +235,7 @@ export default function GroupDetailScreen() {
           invitableFriends.map((friend) => (
             <View key={friend.accountId} style={styles.inviteRow}>
               <Text style={styles.memberName}>{friend.displayName}</Text>
-              <Pressable
+              <Tappable
                 style={styles.inviteButton}
                 onPress={() => handleInvite(friend.accountId)}
                 disabled={invitingId === friend.accountId}
@@ -229,7 +243,7 @@ export default function GroupDetailScreen() {
                 <Text style={styles.inviteButtonText}>
                   {invitingId === friend.accountId ? "Invitando..." : "Invitar"}
                 </Text>
-              </Pressable>
+              </Tappable>
             </View>
           ))
         ) : (
@@ -237,7 +251,12 @@ export default function GroupDetailScreen() {
         )}
       </SectionCard>
 
-      <SectionCard title="Predicciones personalizadas" subtitle="Vota por una opcion mientras este abierta; el autor puede resolverla o abortarla">
+      <SectionCard
+        title="Predicciones personalizadas"
+        subtitle="Vota por una opcion mientras este abierta; el autor puede resolverla o abortarla"
+        icon="sparkles"
+        accentColor={colors.pink}
+      >
         {group.predictions.length > 0 ? (
           group.predictions.map((prediction) => {
             const isAuthor = account?.accountId === prediction.createdByAccountId;
@@ -248,8 +267,9 @@ export default function GroupDetailScreen() {
                 : prediction.status === "aborted"
                   ? "Abortada"
                   : `Cierra: ${formatClosesAt(prediction.closesAt)}`;
+            const isAborted = prediction.status === "aborted";
             return (
-              <View key={prediction.id} style={styles.predictionCard}>
+              <View key={prediction.id} style={[styles.predictionCard, isAborted ? styles.predictionCardAborted : null]}>
                 <Text style={styles.predictionQuestion}>{prediction.question}</Text>
                 <Text style={styles.predictionStatus}>{statusLabel}</Text>
                 <View style={styles.predictionOptionsList}>
@@ -257,19 +277,22 @@ export default function GroupDetailScreen() {
                     const isMine = prediction.myVote === option;
                     const count = prediction.votes[option] ?? 0;
                     return (
-                      <Pressable
+                      <Tappable
                         key={option}
                         style={[styles.voteOption, isMine ? styles.voteOptionSelected : undefined]}
                         onPress={() => handleVote(prediction.id, option)}
                         disabled={!isOpen || votingId === prediction.id}
                       >
-                        <Text style={[styles.voteOptionText, isMine ? styles.voteOptionTextSelected : undefined]}>
-                          {option}
-                        </Text>
+                        <View style={styles.voteOptionLabelRow}>
+                          {isMine ? <Icon glyph="check" size={13} color={colors.background} /> : null}
+                          <Text style={[styles.voteOptionText, isMine ? styles.voteOptionTextSelected : undefined]}>
+                            {option}
+                          </Text>
+                        </View>
                         <Text style={[styles.voteOptionCount, isMine ? styles.voteOptionTextSelected : undefined]}>
                           {count}
                         </Text>
-                      </Pressable>
+                      </Tappable>
                     );
                   })}
                 </View>
@@ -280,35 +303,38 @@ export default function GroupDetailScreen() {
                     {prediction.options.map((option) => {
                       const selected = resolveOptionByPrediction[prediction.id] === option;
                       return (
-                        <Pressable
+                        <Tappable
                           key={option}
                           style={[styles.resolveOption, selected ? styles.resolveOptionSelected : undefined]}
                           onPress={() =>
                             setResolveOptionByPrediction((current) => ({ ...current, [prediction.id]: option }))
                           }
                         >
+                          {selected ? <Icon glyph="check" size={11} color={colors.background} /> : null}
                           <Text
                             style={[styles.resolveOptionText, selected ? styles.resolveOptionTextSelected : undefined]}
                           >
                             {option}
                           </Text>
-                        </Pressable>
+                        </Tappable>
                       );
                     })}
-                    <Pressable
+                    <Tappable
                       style={styles.resolveButton}
                       onPress={() => handleResolve(prediction.id)}
                       disabled={resolvingId === prediction.id || !resolveOptionByPrediction[prediction.id]}
                     >
+                      <Icon glyph="check" size={12} color={colors.background} />
                       <Text style={styles.resolveButtonText}>Resolver</Text>
-                    </Pressable>
-                    <Pressable
+                    </Tappable>
+                    <Tappable
                       style={styles.abortButton}
                       onPress={() => handleAbort(prediction.id)}
                       disabled={resolvingId === prediction.id}
                     >
+                      <Icon glyph="cancel" size={12} color={colors.danger} />
                       <Text style={styles.abortButtonText}>Abortar</Text>
-                    </Pressable>
+                    </Tappable>
                   </View>
                 ) : null}
               </View>
@@ -325,6 +351,8 @@ export default function GroupDetailScreen() {
             placeholderTextColor={colors.muted}
             value={question}
             onChangeText={setQuestion}
+            returnKeyType="done"
+            onSubmitEditing={() => handleProposePrediction()}
           />
           {options.map((option, index) => (
             <View key={index} style={styles.optionRow}>
@@ -332,25 +360,29 @@ export default function GroupDetailScreen() {
                 style={[styles.input, styles.optionInput]}
                 placeholder={`Opcion ${index + 1}`}
                 placeholderTextColor={colors.muted}
+                returnKeyType="done"
+                onSubmitEditing={() => handleProposePrediction()}
                 value={option}
                 onChangeText={(value) => updateOption(index, value)}
               />
               {options.length > 2 ? (
-                <Pressable onPress={() => removeOptionField(index)} style={styles.removeOptionButton}>
-                  <Text style={styles.removeOptionText}>✕</Text>
-                </Pressable>
+                <Tappable onPress={() => removeOptionField(index)} style={styles.removeOptionButton}>
+                  <Icon glyph="close" size={16} color={colors.danger} />
+                </Tappable>
               ) : null}
             </View>
           ))}
-          <Pressable onPress={addOptionField} style={styles.addOptionButton}>
-            <Text style={styles.addOptionText}>+ Añadir opcion</Text>
-          </Pressable>
+          <Tappable onPress={addOptionField} style={styles.addOptionButton}>
+            <Icon glyph="add" size={15} color={colors.accent} />
+            <Text style={styles.addOptionText}>Añadir opcion</Text>
+          </Tappable>
           <Text style={styles.fieldLabel}>Fecha y hora de finalizacion</Text>
           <ClosingDatePicker value={closingDate} onChange={setClosingDate} />
           {predictionError ? <Text style={styles.errorText}>{predictionError}</Text> : null}
-          <Pressable style={styles.submitButton} onPress={handleProposePrediction} disabled={submittingPrediction}>
+          <Tappable style={styles.submitButton} onPress={handleProposePrediction} disabled={submittingPrediction}>
+            <Icon glyph="sparkles" size={14} color={colors.background} />
             <Text style={styles.submitButtonText}>{submittingPrediction ? "Proponiendo..." : "Proponer prediccion"}</Text>
-          </Pressable>
+          </Tappable>
         </View>
       </SectionCard>
     </ScrollView>
@@ -398,8 +430,14 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontWeight: "700",
   },
+  memberEloRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
   memberElo: {
     color: colors.muted,
+    fontWeight: "700",
   },
   requestGroup: {
     gap: spacing.xs,
@@ -424,7 +462,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   inviteButton: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.teal,
     borderRadius: radii.pill,
     paddingHorizontal: spacing.sm,
     paddingVertical: 6,
@@ -442,12 +480,13 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   predictionCard: {
-    backgroundColor: colors.surfaceSoft,
-    borderRadius: radii.sm,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: spacing.sm,
+    paddingVertical: spacing.sm,
+    borderBottomWidth: 2,
+    borderBottomColor: colors.border,
     gap: spacing.xs,
+  },
+  predictionCardAborted: {
+    borderBottomColor: colors.danger,
   },
   predictionQuestion: {
     color: colors.text,
@@ -474,6 +513,12 @@ const styles = StyleSheet.create({
   voteOptionSelected: {
     backgroundColor: colors.primary,
     borderColor: colors.primary,
+    ...shadows.selected,
+  },
+  voteOptionLabelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
   },
   voteOptionText: {
     color: colors.text,
@@ -498,6 +543,9 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
   },
   resolveOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
     borderRadius: radii.pill,
     borderWidth: 1,
     borderColor: colors.border,
@@ -507,6 +555,7 @@ const styles = StyleSheet.create({
   resolveOptionSelected: {
     backgroundColor: colors.accent,
     borderColor: colors.accent,
+    ...shadows.selected,
   },
   resolveOptionText: {
     color: colors.text,
@@ -517,7 +566,10 @@ const styles = StyleSheet.create({
     color: colors.background,
   },
   resolveButton: {
-    backgroundColor: colors.primary,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: colors.success,
     borderRadius: radii.pill,
     paddingHorizontal: spacing.sm,
     paddingVertical: 6,
@@ -528,6 +580,9 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   abortButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
     borderRadius: radii.pill,
     borderWidth: 1,
     borderColor: colors.danger,
@@ -568,6 +623,9 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   addOptionButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
     alignSelf: "flex-start",
   },
   addOptionText: {
@@ -581,10 +639,13 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
   },
   submitButton: {
-    backgroundColor: colors.primary,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    backgroundColor: colors.pink,
     borderRadius: radii.pill,
     paddingVertical: 10,
-    alignItems: "center",
   },
   submitButtonText: {
     color: colors.background,

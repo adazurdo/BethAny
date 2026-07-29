@@ -1,8 +1,9 @@
 import { useRef, useState } from "react";
 import { StyleSheet, Text, View, Animated, Pressable } from "react-native";
-import { colors, radii, spacing, shadows } from "../theme";
+import { accentForKey, colors, radii, spacing, shadows } from "../theme";
 import { useBetSlip } from "./BetSlipContext";
 import { BetOutcome } from "../data/bets";
+import { Icon } from "./Icon";
 import { TeamBadge } from "./TeamBadge";
 
 type TeamInfo = {
@@ -94,13 +95,20 @@ export function EventCard({ title, sport, league, startLabel, featured, tone, ho
     }
   }
 
+  const sportAccent = accentForKey(sport);
+
   return (
-    <View style={[styles.card, featured ? styles.featured : undefined]}>
+    <View style={[styles.card, { borderBottomColor: sportAccent }, featured ? styles.featured : undefined]}>
       <View style={styles.topRow}>
-        <View style={[styles.badge, tone ? { backgroundColor: colors.surfaceSoft } : undefined]}>
+        <View style={[styles.badge, { backgroundColor: tone ? colors.surfaceSoft : sportAccent }]}>
           <Text style={styles.badgeText}>{sport}</Text>
         </View>
-        {featured ? <Text style={styles.liveChip}>DESTACADO</Text> : null}
+        {featured ? (
+          <View style={styles.liveChip}>
+            <Icon glyph="fire" size={12} color={colors.warning} />
+            <Text style={styles.liveChipText}>DESTACADO</Text>
+          </View>
+        ) : null}
       </View>
       {homeTeam && awayTeam ? (
         <View style={styles.matchupRow}>
@@ -145,6 +153,11 @@ export function EventCard({ title, sport, league, startLabel, featured, tone, ho
                   pressed ? styles.pressed : null,
                 ]}
               >
+                {selected ? (
+                  <View style={styles.selectedBadge}>
+                    <Icon glyph="check" size={12} color={colors.background} />
+                  </View>
+                ) : null}
                 <Text style={[styles.outcomeLabel, selected ? styles.outcomeLabelSelected : null]}>{OUTCOME_LABELS[outcome]}</Text>
                 <Text style={[styles.outcomeOdds, selected ? styles.outcomeLabelSelected : null]}>{isOpenForBetting ? odds.toFixed(2) : "—"}</Text>
               </Pressable>
@@ -185,14 +198,11 @@ export function EventCard({ title, sport, league, startLabel, featured, tone, ho
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: colors.surface,
-    borderRadius: radii.md,
-    padding: spacing.md,
+    paddingVertical: spacing.md,
     gap: spacing.xs,
-    borderWidth: 1,
-    borderColor: colors.border,
+    borderBottomWidth: 2,
+    borderBottomColor: colors.border,
     overflow: "visible",
-    ...shadows.card,
   },
   flyingPill: {
     position: "absolute",
@@ -210,8 +220,8 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   featured: {
-    borderColor: colors.primary,
-    backgroundColor: colors.surfaceSoft,
+    borderBottomColor: colors.primary,
+    borderBottomWidth: 3,
   },
   topRow: {
     flexDirection: "row",
@@ -233,6 +243,11 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
   },
   liveChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  liveChipText: {
     color: colors.warning,
     fontSize: 11,
     fontWeight: "900",
@@ -293,12 +308,27 @@ const styles = StyleSheet.create({
     borderRadius: radii.sm,
     paddingVertical: 8,
     alignItems: "center",
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: colors.border,
+    overflow: "visible",
   },
   outcomeButtonSelected: {
     backgroundColor: colors.primary,
     borderColor: colors.primary,
+    ...shadows.selected,
+  },
+  selectedBadge: {
+    position: "absolute",
+    top: -6,
+    right: -6,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: colors.success,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: colors.surface,
   },
   outcomeButtonDisabled: {
     opacity: 0.5,

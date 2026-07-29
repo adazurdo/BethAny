@@ -135,16 +135,23 @@ def _resolve_selection(raw: dict[str, Any]) -> tuple[MockMatch, str, float, str]
     return match, outcome, outcome_odds, _match_label(match)
 
 
-def _serialize_selection(selection: PlacedBetSelection) -> dict[str, Any]:
+def _serialize_selection(selection: PlacedBetSelection, *, settled: bool) -> dict[str, Any]:
+    # The simulated result only becomes visible once the bet itself is settled — showing
+    # it earlier would leak an outcome that, in-fiction, "hasn't happened yet" even though
+    # `generate_match_result` is a pure deterministic function under the hood.
+    result = generate_match_result(selection.match_id) if settled else None
     return {
         "matchId": selection.match_id,
         "matchLabel": selection.match_label,
         "outcome": selection.outcome,
         "odds": selection.odds,
+        "result": result,
+        "won": (result == selection.outcome) if settled else None,
     }
 
 
 def serialize_placed_bet(bet: PlacedBet) -> dict[str, Any]:
+    settled = bet.status != "realizada"
     return {
         "id": bet.id,
         "betType": bet.bet_type,
@@ -154,7 +161,7 @@ def serialize_placed_bet(bet: PlacedBet) -> dict[str, Any]:
         "status": bet.status,
         "createdAt": bet.created_at,
         "settledAt": bet.settled_at,
-        "selections": [_serialize_selection(selection) for selection in bet.selections],
+        "selections": [_serialize_selection(selection, settled=settled) for selection in bet.selections],
     }
 
 

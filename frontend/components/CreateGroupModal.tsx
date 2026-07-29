@@ -1,6 +1,8 @@
 import { useState } from "react";
-import { Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-import { colors, radii, spacing } from "../theme";
+import { Modal, StyleSheet, Text, TextInput, View } from "react-native";
+import { Icon } from "./Icon";
+import { Tappable } from "./Tappable";
+import { colors, radii, shadows, spacing } from "../theme";
 
 type CreateGroupModalProps = {
   visible: boolean;
@@ -40,22 +42,28 @@ export function CreateGroupModal({ visible, onClose, onCreate }: CreateGroupModa
     <Modal visible={visible} transparent animationType="fade" onRequestClose={handleClose}>
       <View style={styles.backdrop}>
         <View style={styles.card}>
-          <Text style={styles.title}>Nuevo grupo de predicciones</Text>
+          <View style={styles.titleRow}>
+            <Icon glyph="groups" size={20} color={colors.sky} />
+            <Text style={styles.title}>Nuevo grupo de predicciones</Text>
+          </View>
           <TextInput
             style={styles.input}
             placeholder="Nombre del grupo"
             placeholderTextColor={colors.muted}
             value={name}
             onChangeText={setName}
+            returnKeyType="done"
+            onSubmitEditing={() => handleCreate()}
           />
           {error ? <Text style={styles.error}>{error}</Text> : null}
           <View style={styles.actions}>
-            <Pressable onPress={handleClose} style={styles.cancelButton}>
+            <Tappable onPress={handleClose} style={styles.cancelButton}>
               <Text style={styles.cancelText}>Cancelar</Text>
-            </Pressable>
-            <Pressable onPress={handleCreate} style={styles.createButton}>
+            </Tappable>
+            <Tappable onPress={handleCreate} style={styles.createButton}>
+              <Icon glyph="add" size={15} color={colors.background} />
               <Text style={styles.createText}>{submitting ? "Creando..." : "Crear"}</Text>
-            </Pressable>
+            </Tappable>
           </View>
         </View>
       </View>
@@ -80,6 +88,12 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     padding: spacing.lg,
     gap: spacing.md,
+    ...shadows.card,
+  },
+  titleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
   title: {
     color: colors.text,
@@ -114,7 +128,10 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   createButton: {
-    backgroundColor: colors.primary,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: colors.sky,
     paddingHorizontal: spacing.md,
     paddingVertical: 10,
     borderRadius: radii.pill,

@@ -1,14 +1,15 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { useAuth } from "../../components/AuthContext";
 import { EconomyBadges } from "../../components/EconomyBadges";
 import { EventCard } from "../../components/EventCard";
 import { SectionCard } from "../../components/SectionCard";
 import Icon from "../../components/Icon";
+import { Tappable } from "../../components/Tappable";
 import { BethsIcon } from "../../components/BethsIcon";
 import { useSocialNotifications } from "../../components/SocialNotificationsContext";
-import { colors, radii, spacing, shadows, fontSizes } from "../../theme";
+import { accentForKey, colors, radii, spacing, shadows, fontSizes } from "../../theme";
 import { fetchMyBets, PlacedBet } from "../../data/bets";
 import { CompetitionSource, MockCompetitionMatch, MockTeam, fetchMockCompetitionMatches, fetchMockCompetitions } from "../../data/mockCompetitions";
 import DesktopShell from "../../components/DesktopShell";
@@ -104,7 +105,10 @@ export default function HomeScreen() {
   const content = (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <View style={styles.hero}>
-        <Text style={styles.kicker}>Bienvenido</Text>
+        <View style={styles.kickerRow}>
+          <Icon glyph="sparkles" size={14} color={colors.accent} />
+          <Text style={styles.kicker}>Bienvenido</Text>
+        </View>
         <Text style={styles.title}>{displayName}</Text>
         <Text style={styles.subtitle}>{rankLabel}</Text>
         <EconomyBadges elo={elo} beths={beths} size="lg" />
@@ -112,22 +116,27 @@ export default function HomeScreen() {
 
       {competitions && competitions.length > 0 ? (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.competitionsRow}>
-          {competitions.map((competition) => (
-            <Pressable
-              key={competition.code}
-              onPress={() => goToCompetition(competition.displayName)}
-              style={({ pressed }) => [styles.competitionChip, pressed ? styles.pressed : null]}
-            >
-              <Icon glyph="matches" size={14} color={colors.primary} />
-              <Text style={styles.competitionChipText}>{competition.displayName}</Text>
-            </Pressable>
-          ))}
+          {competitions.map((competition) => {
+            const accent = accentForKey(competition.code);
+            return (
+              <Tappable
+                key={competition.code}
+                onPress={() => goToCompetition(competition.displayName)}
+                style={[styles.competitionChip, { borderColor: accent }]}
+              >
+                <Icon glyph="matches" size={14} color={accent} />
+                <Text style={styles.competitionChipText}>{competition.displayName}</Text>
+              </Tappable>
+            );
+          })}
         </ScrollView>
       ) : null}
 
       <SectionCard
         title="Próximos partidos"
         subtitle={featuredCompetition ? `${featuredCompetition} • listos para apostar` : "Cargando competiciones..."}
+        icon="matches"
+        accentColor={colors.sky}
       >
         <View style={styles.grid}>
           {matchesLoading ? (
@@ -163,7 +172,7 @@ export default function HomeScreen() {
         ) : null}
       </SectionCard>
 
-      <SectionCard title="Tus apuestas" subtitle="Resumen de tu actividad reciente">
+      <SectionCard title="Tus apuestas" subtitle="Resumen de tu actividad reciente" icon="bets" accentColor={colors.gold}>
         {!betsSummary ? (
           <ActivityIndicator color={colors.primary} />
         ) : betsSummary.count === 0 ? (
@@ -190,13 +199,13 @@ export default function HomeScreen() {
         <FooterLink label="Ver todas mis apuestas" onPress={() => router.push("/bets")} />
       </SectionCard>
 
-      <SectionCard title="Tu progreso" subtitle="Elo, Beths y ranking global">
+      <SectionCard title="Tu progreso" subtitle="Elo, Beths y ranking global" icon="elo" accentColor={colors.pink}>
         <EconomyBadges elo={elo} beths={beths} />
         <Text style={styles.progressRank}>{rankLabel}</Text>
         <FooterLink label="Ver ranking completo" onPress={() => router.push("/ranking")} />
       </SectionCard>
 
-      <SectionCard title="Actividad social" subtitle="Amigos y grupos">
+      <SectionCard title="Actividad social" subtitle="Amigos y grupos" icon="social" accentColor={colors.teal}>
         {hasSocialActivity ? (
           <View style={styles.summaryRows}>
             {friendRequestCount > 0 ? (
@@ -237,10 +246,10 @@ function SummaryRow({ label, value, highlight, icon }: { label: string; value: s
 
 function FooterLink({ label, onPress }: { label: string; onPress: () => void }) {
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [styles.footerLink, pressed ? styles.pressed : null]}>
+    <Tappable onPress={onPress} style={styles.footerLink}>
       <Text style={styles.footerLinkText}>{label}</Text>
       <Icon glyph="chevron" size={14} color={colors.primary} />
-    </Pressable>
+    </Tappable>
   );
 }
 
@@ -262,6 +271,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     ...shadows.card,
+  },
+  kickerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
   },
   kicker: {
     color: colors.accent,
@@ -300,9 +314,6 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontWeight: "800",
     fontSize: 13,
-  },
-  pressed: {
-    opacity: 0.85,
   },
   grid: {
     gap: spacing.sm,

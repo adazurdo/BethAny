@@ -1,38 +1,62 @@
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
+import { Icon } from "./Icon";
 import { NotificationBadge } from "./NotificationBadge";
-import { colors, radii, spacing } from "../theme";
+import { Tappable } from "./Tappable";
+import { accentForKey, colors, radii, spacing } from "../theme";
 
 type GroupCardProps = {
+  id: string;
   name: string;
   memberCount: number;
   hasUpdate?: boolean;
   onPress: () => void;
 };
 
-export function GroupCard({ name, memberCount, hasUpdate = false, onPress }: GroupCardProps) {
+export function GroupCard({ id, name, memberCount, hasUpdate = false, onPress }: GroupCardProps) {
+  const accent = accentForKey(id);
   return (
-    <Pressable onPress={onPress} style={styles.card}>
-      <View style={styles.header}>
-        <Text style={styles.name}>{name}</Text>
-        {hasUpdate ? <NotificationBadge inline /> : null}
+    <Tappable onPress={onPress} style={styles.row}>
+      <View style={[styles.iconBadge, { backgroundColor: `${accent}26`, borderColor: accent }]}>
+        <Icon glyph="groups" size={18} color={accent} />
       </View>
-      <Text style={styles.meta}>{memberCount} {memberCount === 1 ? "miembro" : "miembros"}</Text>
-    </Pressable>
+      <View style={styles.body}>
+        <View style={styles.header}>
+          <Text style={styles.name}>{name}</Text>
+          {hasUpdate ? <NotificationBadge inline /> : null}
+        </View>
+        <Text style={styles.meta}>
+          {memberCount} {memberCount === 1 ? "miembro" : "miembros"}
+        </Text>
+      </View>
+      <Icon glyph="chevron" size={16} color={colors.muted} />
+    </Tappable>
   );
 }
 
 const styles = StyleSheet.create({
-  card: {
-    backgroundColor: colors.surfaceSoft,
-    borderRadius: radii.md,
-    padding: spacing.md,
-    gap: 6,
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    paddingVertical: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  iconBadge: {
+    width: 38,
+    height: 38,
+    borderRadius: radii.pill,
     borderWidth: 1,
-    borderColor: colors.border,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  body: {
+    flex: 1,
+    gap: 2,
   },
   header: {
     flexDirection: "row",
-    justifyContent: "space-between",
+    alignItems: "center",
     gap: spacing.sm,
   },
   name: {

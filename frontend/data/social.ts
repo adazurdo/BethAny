@@ -6,6 +6,8 @@ export type SocialFriend = {
   displayName: string;
   avatarUrl: string;
   elo: number;
+  challengeWins: number;
+  challengeLosses: number;
 };
 
 export type FriendRequest = {

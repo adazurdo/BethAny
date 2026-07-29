@@ -1,12 +1,15 @@
-import { useEffect, useState } from "react";
-import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { useState } from "react";
+import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, View } from "react-native";
 import { router } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import { AvatarCropModal } from "../../components/AvatarCropModal";
 import { useAuth } from "../../components/AuthContext";
+import { EditProfileModal } from "../../components/EditProfileModal";
+import { Icon } from "../../components/Icon";
 import { ProfileSummary } from "../../components/ProfileSummary";
 import { SectionCard } from "../../components/SectionCard";
-import { colors, radii, spacing } from "../../theme";
+import { Tappable } from "../../components/Tappable";
+import { accentForKey, colors, radii, shadows, spacing } from "../../theme";
 import { globalRanking, mockProfile } from "../../data";
 import { ackEloMilestones } from "../../data/auth";
 
@@ -19,19 +22,12 @@ type PickedImage = {
 export default function ProfileScreen() {
   const { account, logout, updateAccount, refreshAccount } = useAuth();
   const profile = account?.profile ?? mockProfile;
-  const [displayName, setDisplayName] = useState(profile.displayName);
-  const [bio, setBio] = useState(profile.bio);
-  const [saving, setSaving] = useState(false);
   const [changingAvatar, setChangingAvatar] = useState(false);
   const [avatarError, setAvatarError] = useState<string | null>(null);
   const [pickedImage, setPickedImage] = useState<PickedImage | null>(null);
   const [cropModalVisible, setCropModalVisible] = useState(false);
   const [dismissingMilestones, setDismissingMilestones] = useState(false);
-
-  useEffect(() => {
-    setDisplayName(profile.displayName);
-    setBio(profile.bio);
-  }, [profile.displayName, profile.bio]);
+  const [editModalVisible, setEditModalVisible] = useState(false);
 
   const unseenMilestones = account?.unseenEloMilestones ?? [];
 
@@ -45,20 +41,15 @@ export default function ProfileScreen() {
     }
   }
 
-  async function handleSave() {
+  async function handleSaveProfile(displayName: string, bio: string) {
     if (!account) return;
-    setSaving(true);
-    try {
-      await updateAccount({
-        profile: {
-          ...profile,
-          displayName: displayName.trim() || profile.displayName,
-          bio: bio.trim() || profile.bio,
-        },
-      });
-    } finally {
-      setSaving(false);
-    }
+    await updateAccount({
+      profile: {
+        ...profile,
+        displayName: displayName.trim() || profile.displayName,
+        bio: bio.trim() || profile.bio,
+      },
+    });
   }
 
   async function handleChangeAvatar() {
@@ -141,16 +132,17 @@ export default function ProfileScreen() {
 
       {unseenMilestones.map((milestone) => (
         <View key={milestone.tier} style={styles.milestoneBanner}>
+          <Icon glyph="medal" size={20} color={colors.background} />
           <Text style={styles.milestoneText}>
             ¡Has alcanzado {milestone.tier} de Elo! +{milestone.bonusBeths} Beths
           </Text>
-          <Pressable onPress={handleDismissMilestones} disabled={dismissingMilestones} style={styles.milestoneDismiss}>
+          <Tappable onPress={handleDismissMilestones} disabled={dismissingMilestones} style={styles.milestoneDismiss}>
             {dismissingMilestones ? (
               <ActivityIndicator color={colors.surface} size="small" />
             ) : (
               <Text style={styles.milestoneDismissText}>Entendido</Text>
             )}
-          </Pressable>
+          </Tappable>
         </View>
       ))}
 
@@ -163,34 +155,50 @@ export default function ProfileScreen() {
         onConfirm={handleConfirmAvatarCrop}
       />
 
-      <SectionCard title="Edit account" subtitle="Keep the saved profile data in sync with the current session.">
-        <View style={styles.form}>
-          <TextInput value={displayName} onChangeText={setDisplayName} placeholder="Display name" placeholderTextColor={colors.muted} style={styles.input} />
-          <TextInput value={bio} onChangeText={setBio} placeholder="Bio" placeholderTextColor={colors.muted} style={[styles.input, styles.multiline]} multiline />
-          <Pressable onPress={handleSave} style={styles.saveButton} disabled={saving}>
-            {saving ? <ActivityIndicator color={colors.surface} /> : <Text style={styles.saveText}>Guardar cambios</Text>}
-          </Pressable>
-          <Pressable onPress={() => router.push("/bets")} style={styles.myBetsButton}>
-            <Text style={styles.myBetsText}>Mis apuestas</Text>
-          </Pressable>
-          <Pressable onPress={handleLogout} style={styles.logoutButton}>
-            <Text style={styles.logoutText}>Cerrar sesión</Text>
-          </Pressable>
-        </View>
-      </SectionCard>
+      <View style={styles.quickActions}>
+        <Tappable onPress={() => setEditModalVisible(true)} style={styles.editButton}>
+          <Icon glyph="edit" size={15} color={colors.background} />
+          <Text style={styles.editText}>Editar perfil</Text>
+        </Tappable>
+        <Tappable onPress={() => router.push("/bets")} style={styles.myBetsButton}>
+          <Icon glyph="bets" size={15} color={colors.gold} />
+          <Text style={styles.myBetsText}>Mis apuestas</Text>
+        </Tappable>
+        <Tappable onPress={handleLogout} style={styles.logoutButton}>
+          <Icon glyph="logout" size={15} color={colors.danger} />
+          <Text style={styles.logoutText}>Cerrar sesión</Text>
+        </Tappable>
+      </View>
 
-      <SectionCard title="Global ranking snapshot" subtitle="Shown here without a separate tab">
+      <EditProfileModal
+        visible={editModalVisible}
+        initialDisplayName={profile.displayName}
+        initialBio={profile.bio}
+        onClose={() => setEditModalVisible(false)}
+        onSave={handleSaveProfile}
+      />
+
+      <SectionCard title="Global ranking snapshot" subtitle="Shown here without a separate tab" icon="ranking" accentColor={colors.gold}>
         <View style={styles.rankingList}>
-          {globalRanking.slice(0, 3).map((entry) => (
-            <View key={entry.id} style={styles.row}>
-              <Text style={styles.rank}>{entry.position}</Text>
-              <View style={styles.rowText}>
-                <Text style={styles.name}>{entry.displayName}</Text>
-                <Text style={styles.meta}>{entry.badge}</Text>
+          {globalRanking.slice(0, 3).map((entry) => {
+            const accent = entry.position === 1 ? colors.gold : accentForKey(entry.id);
+            return (
+              <View key={entry.id} style={styles.row}>
+                <View style={[styles.rankBadge, { borderColor: accent }]}>
+                  {entry.position <= 3 ? (
+                    <Icon glyph="medal" size={14} color={accent} />
+                  ) : (
+                    <Text style={[styles.rank, { color: accent }]}>{entry.position}</Text>
+                  )}
+                </View>
+                <View style={styles.rowText}>
+                  <Text style={styles.name}>{entry.displayName}</Text>
+                  <Text style={styles.meta}>{entry.badge}</Text>
+                </View>
+                <Text style={styles.score}>{entry.elo}</Text>
               </View>
-              <Text style={styles.score}>{entry.elo}</Text>
-            </View>
-          ))}
+            );
+          })}
         </View>
       </SectionCard>
     </ScrollView>
@@ -215,6 +223,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     borderRadius: radii.md,
     padding: spacing.md,
+    ...shadows.selected,
   },
   milestoneText: {
     flex: 1,
@@ -245,52 +254,53 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 1.1,
   },
-  form: {
+  quickActions: {
     gap: spacing.sm,
   },
-  input: {
-    backgroundColor: colors.surfaceSoft,
-    borderRadius: radii.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    color: colors.text,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 12,
-  },
-  multiline: {
-    minHeight: 96,
-    textAlignVertical: "top",
-  },
-  saveButton: {
-    backgroundColor: colors.primary,
+  editButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    backgroundColor: colors.pink,
     borderRadius: 999,
     paddingVertical: 12,
-    alignItems: "center",
+    shadowColor: colors.pink,
+    shadowOpacity: 0.4,
+    shadowOffset: { width: 0, height: 0 },
+    shadowRadius: 12,
+    elevation: 6,
   },
-  saveText: {
-    color: colors.surface,
+  editText: {
+    color: colors.background,
     fontWeight: "900",
   },
   myBetsButton: {
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: colors.primary,
-    paddingVertical: 12,
+    flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    borderRadius: 999,
+    borderWidth: 1.5,
+    borderColor: colors.gold,
+    paddingVertical: 12,
   },
   myBetsText: {
-    color: colors.primary,
+    color: colors.gold,
     fontWeight: "800",
   },
   logoutButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.danger,
     paddingVertical: 12,
-    alignItems: "center",
   },
   logoutText: {
-    color: colors.text,
+    color: colors.danger,
     fontWeight: "800",
   },
   rankingList: {
@@ -304,9 +314,15 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
+  rankBadge: {
+    width: 30,
+    height: 30,
+    borderRadius: radii.pill,
+    borderWidth: 1.5,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   rank: {
-    width: 28,
-    color: colors.primaryDark,
     fontWeight: "900",
   },
   rowText: {

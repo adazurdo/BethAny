@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import DesktopShell from "../../../components/DesktopShell";
 import { SectionCard } from "../../../components/SectionCard";
 import { EventCard } from "../../../components/EventCard";
+import { Icon } from "../../../components/Icon";
+import { Tappable } from "../../../components/Tappable";
 import { mockEvents } from "../../../data";
 import {
   CompetitionSource,
@@ -13,7 +15,7 @@ import {
   fetchMockCompetitions,
   syncMockCompetition,
 } from "../../../data/mockCompetitions";
-import { colors, radii, spacing } from "../../../theme";
+import { colors, radii, shadows, spacing } from "../../../theme";
 
 export default function MatchesByCompetitionScreen() {
   const params = useLocalSearchParams<{ competition?: string }>();
@@ -94,7 +96,10 @@ export default function MatchesByCompetitionScreen() {
   const content = (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <View style={styles.hero}>
-        <Text style={styles.kicker}>Competicion</Text>
+        <View style={styles.kickerRow}>
+          <Icon glyph="matches" size={14} color={colors.accent} />
+          <Text style={styles.kicker}>Competicion</Text>
+        </View>
         <Text style={styles.title}>{competition}</Text>
         <Text style={styles.subtitle}>Partidos mock disponibles para esta seccion.</Text>
 
@@ -103,19 +108,17 @@ export default function MatchesByCompetitionScreen() {
             <Text style={styles.syncInfo}>
               {source?.lastSyncedAt ? `Ultima sincronizacion: ${new Date(source.lastSyncedAt).toLocaleString()}` : "Aun no sincronizado"}
             </Text>
-            <Pressable
-              onPress={handleSync}
-              disabled={syncing}
-              style={({ pressed }) => [styles.syncButton, pressed || syncing ? styles.syncButtonPressed : null]}
-            >
+            <Tappable onPress={handleSync} disabled={syncing} style={[styles.syncButton, syncing ? styles.syncButtonPressed : null]}>
+              <Icon glyph="matches" size={13} color={colors.background} />
               <Text style={styles.syncButtonText}>{syncing ? "Sincronizando..." : "Actualizar partidos"}</Text>
-            </Pressable>
+            </Tappable>
           </View>
         ) : null}
       </View>
 
       {isFootballBacked && isStale ? (
         <View style={styles.staleBanner}>
+          <Icon glyph="info" size={16} color={colors.warning} />
           <Text style={styles.staleText}>
             No se pudo actualizar desde football-data.org{source?.lastError ? `: ${source.lastError}` : "."} Mostrando el ultimo dataset valido.
           </Text>
@@ -124,6 +127,7 @@ export default function MatchesByCompetitionScreen() {
 
       {syncMessage ? (
         <View style={styles.staleBanner}>
+          <Icon glyph="info" size={16} color={colors.warning} />
           <Text style={styles.staleText}>{syncMessage}</Text>
         </View>
       ) : null}
@@ -131,6 +135,8 @@ export default function MatchesByCompetitionScreen() {
       <SectionCard
         title="Partidos"
         subtitle={loading ? "Cargando..." : `${isFootballBacked ? matches?.length ?? 0 : staticEvents.length} eventos mock`}
+        icon="matches"
+        accentColor={colors.sky}
       >
         <View style={styles.grid}>
           {loading ? (
@@ -160,13 +166,10 @@ export default function MatchesByCompetitionScreen() {
               <View style={styles.emptyState}>
                 <Text style={styles.emptyTitle}>No hay partidos mock en esta competencia</Text>
                 <Text style={styles.emptyText}>Sincroniza con football-data.org para generar el catalogo de equipos y partidos.</Text>
-                <Pressable
-                  onPress={handleSync}
-                  disabled={syncing}
-                  style={({ pressed }) => [styles.syncButton, pressed || syncing ? styles.syncButtonPressed : null]}
-                >
+                <Tappable onPress={handleSync} disabled={syncing} style={[styles.syncButton, syncing ? styles.syncButtonPressed : null]}>
+                  <Icon glyph="matches" size={13} color={colors.background} />
                   <Text style={styles.syncButtonText}>{syncing ? "Sincronizando..." : "Sincronizar ahora"}</Text>
-                </Pressable>
+                </Tappable>
               </View>
             )
           ) : staticEvents.length > 0 ? (
@@ -202,6 +205,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     padding: spacing.lg,
+  },
+  kickerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
   },
   kicker: {
     color: colors.accent,
@@ -252,6 +260,9 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   staleBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
     backgroundColor: "rgba(255,184,77,0.12)",
     borderRadius: radii.md,
     padding: spacing.sm,
@@ -259,17 +270,22 @@ const styles = StyleSheet.create({
     borderColor: colors.warning,
   },
   staleText: {
+    flex: 1,
     color: colors.warning,
     fontSize: 13,
     fontWeight: "700",
   },
   syncButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
     marginTop: spacing.sm,
     alignSelf: "flex-start",
-    backgroundColor: colors.primary,
+    backgroundColor: colors.sky,
     borderRadius: radii.sm,
     paddingVertical: 10,
     paddingHorizontal: 16,
+    ...shadows.glow,
   },
   syncButtonPressed: {
     opacity: 0.85,

@@ -38,9 +38,7 @@ from .models import (
     MockMatch,
     PredictionGroup,
     PredictionVote,
-    SessionState,
     TeamSnapshot,
     UserAccount,
 )
 from .ranking import build_global_ranking_summary
-from .session_state import create_default_session_state, set_active_account

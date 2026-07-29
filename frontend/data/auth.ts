@@ -43,6 +43,16 @@ export type AuthAccount = {
   unseenEloMilestones: EloMilestoneAward[];
 };
 
+type AuthResponse = AuthAccount & { sessionToken: string };
+
+// Per-tab/per-app-instance session token, kept in memory only (matches the app's existing
+// "log in again after a reload" behavior — see AuthContext, which never restores `account`
+// on mount either). The backend used to track a single global "active account" instead of a
+// token per login, so logging in from a second device silently hijacked every other device's
+// session — exactly the scenario the friends feature needs to test, since it requires two
+// real accounts logged in at once. This token is what fixes that.
+let sessionToken: string | null = null;
+
 export type AuthCredentials = {
   identifier: string;
   password: string;
@@ -82,6 +92,7 @@ export async function requestJson<T>(path: string, init?: RequestInit): Promise<
     response = await fetch(`${API_URL}${path}`, {
       headers: {
         "Content-Type": "application/json",
+        ...(sessionToken ? { Authorization: `Bearer ${sessionToken}` } : {}),
         ...(init?.headers ?? {}),
       },
       ...init,
@@ -106,23 +117,31 @@ export function getApiUrl() {
 }
 
 export async function registerAccount(credentials: AuthCredentials) {
-  return requestJson<AuthAccount>("/auth/register", {
+  const response = await requestJson<AuthResponse>("/auth/register", {
     method: "POST",
     body: JSON.stringify(credentials),
   });
+  sessionToken = response.sessionToken;
+  return response;
 }
 
 export async function loginAccount(credentials: AuthCredentials) {
-  return requestJson<AuthAccount>("/auth/login", {
+  const response = await requestJson<AuthResponse>("/auth/login", {
     method: "POST",
     body: JSON.stringify(credentials),
   });
+  sessionToken = response.sessionToken;
+  return response;
 }
 
 export async function logoutAccount() {
-  return requestJson<{ ok: true }>("/auth/logout", {
-    method: "POST",
-  });
+  try {
+    return await requestJson<{ ok: true }>("/auth/logout", {
+      method: "POST",
+    });
+  } finally {
+    sessionToken = null;
+  }
 }
 
 export async function loadCurrentAccount() {

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import secrets
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
@@ -19,6 +20,16 @@ from .bet_repository import (
     list_placed_bets,
     place_bet,
 )
+from .challenge_repository import (
+    cancel_challenge,
+    create_custom_challenge,
+    create_match_challenge,
+    head_to_head_counts,
+    initialize_repository as initialize_challenge_repository,
+    list_challenges_for_account,
+    resolve_custom_challenge,
+    respond_challenge,
+)
 from .mock_dataset_repository import (
     get_competition_source,
     get_snapshot,
@@ -26,7 +37,7 @@ from .mock_dataset_repository import (
     list_competition_sources,
 )
 from .mock_dataset_service import sync_competition
-from .models import AccountProfile, BetRecord, SessionState
+from .models import AccountProfile, BetRecord
 from .odds import generate_match_odds
 from .social_repository import (
     ConflictError,
@@ -51,7 +62,26 @@ from .social_repository import (
     serialize_group_detail,
 )
 
-SESSION = SessionState()
+# In-memory session store: token -> account_id. Each login/register call gets its own
+# token instead of sharing one process-wide "active account" — the previous single global
+# session meant that as soon as a second account logged in from another device (the normal
+# way to test the friends feature, which needs two real accounts), it silently replaced the
+# first session, so requests from the first device kept acting as the second account and
+# friend requests/state appeared to vanish. See specs/007-retos-entre-amigos and the friends
+# feature bug report that traced back to this.
+SESSIONS: dict[str, str] = {}
+
+
+def _new_session_token() -> str:
+    return secrets.token_hex(24)
+
+
+def _session_token_from_headers(handler: BaseHTTPRequestHandler) -> str | None:
+    header = handler.headers.get("Authorization", "")
+    if not header.startswith("Bearer "):
+        return None
+    token = header[len("Bearer ") :].strip()
+    return token or None
 
 
 def _json_response(handler: BaseHTTPRequestHandler, status: HTTPStatus, payload: dict[str, Any]) -> None:
@@ -60,7 +90,7 @@ def _json_response(handler: BaseHTTPRequestHandler, status: HTTPStatus, payload:
     handler.send_header("Content-Type", "application/json; charset=utf-8")
     handler.send_header("Content-Length", str(len(body)))
     handler.send_header("Access-Control-Allow-Origin", "*")
-    handler.send_header("Access-Control-Allow-Headers", "Content-Type")
+    handler.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
     handler.send_header("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS")
     handler.end_headers()
     handler.wfile.write(body)
@@ -76,6 +106,19 @@ def _read_json(handler: BaseHTTPRequestHandler) -> dict[str, Any]:
 
 def _serialize_account(account) -> dict[str, Any]:
     return {**account.to_dict(), "unseenEloMilestones": list_unseen_elo_milestones(account.id)}
+
+
+def _friend_state_with_head_to_head(account_id: str) -> dict[str, Any]:
+    """`friend_state` (social_repository) and `head_to_head_counts` (challenge_repository)
+    are merged here rather than one module importing the other, to avoid a circular import
+    (challenge_repository already depends on social_repository for `is_friend`)."""
+    state = friend_state(account_id)
+    counts = head_to_head_counts(account_id)
+    for friend in state["friends"]:
+        record = counts.get(friend["accountId"], {"wins": 0, "losses": 0})
+        friend["challengeWins"] = record["wins"]
+        friend["challengeLosses"] = record["losses"]
+    return state
 
 
 def _split_path(path: str) -> list[str]:
@@ -118,10 +161,12 @@ def _coerce_bets(payload: list[dict[str, Any]]) -> list[BetRecord]:
 
 class BethanyRequestHandler(BaseHTTPRequestHandler):
     def _require_session(self) -> str | None:
-        if SESSION.active_account_id is None:
+        token = _session_token_from_headers(self)
+        account_id = SESSIONS.get(token) if token else None
+        if account_id is None:
             _json_response(self, HTTPStatus.UNAUTHORIZED, {"error": "no active session"})
             return None
-        return SESSION.active_account_id
+        return account_id
 
     def do_OPTIONS(self) -> None:  # noqa: N802
         _json_response(self, HTTPStatus.NO_CONTENT, {})
@@ -132,12 +177,14 @@ class BethanyRequestHandler(BaseHTTPRequestHandler):
             return
 
         if self.path == "/account/me":
-            if SESSION.active_account_id is None:
-                _json_response(self, HTTPStatus.UNAUTHORIZED, {"error": "no active session"})
+            account_id = self._require_session()
+            if account_id is None:
                 return
-            account = get_account_by_id(SESSION.active_account_id)
+            account = get_account_by_id(account_id)
             if account is None:
-                SESSION.active_account_id = None
+                token = _session_token_from_headers(self)
+                if token:
+                    SESSIONS.pop(token, None)
                 _json_response(self, HTTPStatus.NOT_FOUND, {"error": "account not found"})
                 return
             _json_response(self, HTTPStatus.OK, _serialize_account(account))
@@ -149,7 +196,7 @@ class BethanyRequestHandler(BaseHTTPRequestHandler):
             account_id = self._require_session()
             if account_id is None:
                 return
-            _json_response(self, HTTPStatus.OK, friend_state(account_id))
+            _json_response(self, HTTPStatus.OK, _friend_state_with_head_to_head(account_id))
             return
 
         if segments == ["social", "groups", "invites"]:
@@ -224,6 +271,13 @@ class BethanyRequestHandler(BaseHTTPRequestHandler):
             _json_response(self, HTTPStatus.OK, {"bets": list_placed_bets(account_id)})
             return
 
+        if segments == ["challenges", "mine"]:
+            account_id = self._require_session()
+            if account_id is None:
+                return
+            _json_response(self, HTTPStatus.OK, list_challenges_for_account(account_id))
+            return
+
         _json_response(self, HTTPStatus.NOT_FOUND, {"error": "not found"})
 
     def do_POST(self) -> None:  # noqa: N802
@@ -240,8 +294,9 @@ class BethanyRequestHandler(BaseHTTPRequestHandler):
                 status = HTTPStatus.CONFLICT if "exists" in message else HTTPStatus.BAD_REQUEST
                 _json_response(self, status, {"error": message})
                 return
-            SESSION.active_account_id = account.id
-            _json_response(self, HTTPStatus.CREATED, _serialize_account(account))
+            token = _new_session_token()
+            SESSIONS[token] = account.id
+            _json_response(self, HTTPStatus.CREATED, {**_serialize_account(account), "sessionToken": token})
             return
 
         if self.path == "/auth/login":
@@ -254,12 +309,15 @@ class BethanyRequestHandler(BaseHTTPRequestHandler):
             except PermissionError as exc:
                 _json_response(self, HTTPStatus.UNAUTHORIZED, {"error": str(exc)})
                 return
-            SESSION.active_account_id = account.id
-            _json_response(self, HTTPStatus.OK, _serialize_account(account))
+            token = _new_session_token()
+            SESSIONS[token] = account.id
+            _json_response(self, HTTPStatus.OK, {**_serialize_account(account), "sessionToken": token})
             return
 
         if self.path == "/auth/logout":
-            SESSION.active_account_id = None
+            token = _session_token_from_headers(self)
+            if token:
+                SESSIONS.pop(token, None)
             _json_response(self, HTTPStatus.OK, {"ok": True})
             return
 
@@ -289,7 +347,7 @@ class BethanyRequestHandler(BaseHTTPRequestHandler):
             except LookupError as exc:
                 _json_response(self, HTTPStatus.NOT_FOUND, {"error": str(exc)})
                 return
-            _json_response(self, HTTPStatus.OK, friend_state(account_id))
+            _json_response(self, HTTPStatus.OK, _friend_state_with_head_to_head(account_id))
             return
 
         if segments[:3] == ["social", "friends", "requests"] and len(segments) == 5 and segments[4] in ("accept", "reject"):
@@ -308,7 +366,7 @@ class BethanyRequestHandler(BaseHTTPRequestHandler):
             except LookupError as exc:
                 _json_response(self, HTTPStatus.NOT_FOUND, {"error": str(exc)})
                 return
-            _json_response(self, HTTPStatus.OK, friend_state(account_id))
+            _json_response(self, HTTPStatus.OK, _friend_state_with_head_to_head(account_id))
             return
 
         if segments == ["social", "groups"]:
@@ -509,20 +567,89 @@ class BethanyRequestHandler(BaseHTTPRequestHandler):
             _json_response(self, HTTPStatus.CREATED, {"placedBets": placed_bets})
             return
 
+        if segments == ["challenges"]:
+            account_id = self._require_session()
+            if account_id is None:
+                return
+            payload = _read_json(self)
+            challenge_type = str(payload.get("challengeType", "match"))
+            try:
+                if challenge_type == "custom":
+                    options = payload.get("options", [])
+                    challenge = create_custom_challenge(
+                        account_id,
+                        str(payload.get("opponentAccountId", "")),
+                        str(payload.get("title", "")),
+                        [str(option) for option in options] if isinstance(options, list) else [],
+                        str(payload.get("outcome", "")),
+                    )
+                else:
+                    challenge = create_match_challenge(
+                        account_id,
+                        str(payload.get("opponentAccountId", "")),
+                        str(payload.get("matchId", "")),
+                        str(payload.get("outcome", "")),
+                    )
+            except ValueError as exc:
+                _json_response(self, HTTPStatus.BAD_REQUEST, {"error": str(exc)})
+                return
+            except PermissionError as exc:
+                _json_response(self, HTTPStatus.FORBIDDEN, {"error": str(exc)})
+                return
+            except ConflictError as exc:
+                _json_response(self, HTTPStatus.CONFLICT, {"error": str(exc)})
+                return
+            except LookupError as exc:
+                _json_response(self, HTTPStatus.NOT_FOUND, {"error": str(exc)})
+                return
+            _json_response(self, HTTPStatus.CREATED, challenge)
+            return
+
+        if segments[:1] == ["challenges"] and len(segments) == 3 and segments[2] in ("accept", "decline", "cancel", "resolve"):
+            account_id = self._require_session()
+            if account_id is None:
+                return
+            challenge_id = segments[1]
+            action = segments[2]
+            try:
+                if action == "cancel":
+                    challenge = cancel_challenge(account_id, challenge_id)
+                elif action == "resolve":
+                    payload = _read_json(self)
+                    challenge = resolve_custom_challenge(account_id, challenge_id, str(payload.get("result", "")))
+                else:
+                    challenge = respond_challenge(account_id, challenge_id, accept=action == "accept")
+            except ValueError as exc:
+                _json_response(self, HTTPStatus.BAD_REQUEST, {"error": str(exc)})
+                return
+            except PermissionError as exc:
+                _json_response(self, HTTPStatus.FORBIDDEN, {"error": str(exc)})
+                return
+            except ConflictError as exc:
+                _json_response(self, HTTPStatus.CONFLICT, {"error": str(exc)})
+                return
+            except LookupError as exc:
+                _json_response(self, HTTPStatus.NOT_FOUND, {"error": str(exc)})
+                return
+            _json_response(self, HTTPStatus.OK, challenge)
+            return
+
         _json_response(self, HTTPStatus.NOT_FOUND, {"error": "not found"})
 
     def do_PUT(self) -> None:  # noqa: N802
         if self.path != "/account/me":
             _json_response(self, HTTPStatus.NOT_FOUND, {"error": "not found"})
             return
-        if SESSION.active_account_id is None:
-            _json_response(self, HTTPStatus.UNAUTHORIZED, {"error": "no active session"})
+        account_id = self._require_session()
+        if account_id is None:
             return
 
         payload = _read_json(self)
-        account = get_account_by_id(SESSION.active_account_id)
+        account = get_account_by_id(account_id)
         if account is None:
-            SESSION.active_account_id = None
+            token = _session_token_from_headers(self)
+            if token:
+                SESSIONS.pop(token, None)
             _json_response(self, HTTPStatus.NOT_FOUND, {"error": "account not found"})
             return
 
@@ -559,7 +686,7 @@ class BethanyRequestHandler(BaseHTTPRequestHandler):
             except LookupError as exc:
                 _json_response(self, HTTPStatus.NOT_FOUND, {"error": str(exc)})
                 return
-            _json_response(self, HTTPStatus.OK, friend_state(account_id))
+            _json_response(self, HTTPStatus.OK, _friend_state_with_head_to_head(account_id))
             return
 
         _json_response(self, HTTPStatus.NOT_FOUND, {"error": "not found"})
@@ -570,6 +697,7 @@ def create_app(host: str = "127.0.0.1", port: int = 8000) -> ThreadingHTTPServer
     initialize_mock_dataset_repository()
     initialize_social_repository()
     initialize_bet_repository()
+    initialize_challenge_repository()
     return ThreadingHTTPServer((host, port), BethanyRequestHandler)
 
 

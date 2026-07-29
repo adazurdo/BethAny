@@ -160,6 +160,28 @@ def initialize_database() -> None:
             )
         """)
         connection.execute("""
+            CREATE TABLE IF NOT EXISTS friend_challenges (
+                id TEXT PRIMARY KEY,
+                challenger_account_id TEXT NOT NULL,
+                opponent_account_id TEXT NOT NULL,
+                challenge_type TEXT NOT NULL DEFAULT 'match',
+                match_id TEXT NOT NULL,
+                match_label TEXT NOT NULL,
+                title TEXT,
+                options_json TEXT NOT NULL DEFAULT '[]',
+                outcome TEXT NOT NULL,
+                stake INTEGER NOT NULL,
+                status TEXT NOT NULL DEFAULT 'pending',
+                created_at TEXT NOT NULL,
+                responded_at TEXT,
+                settled_at TEXT,
+                result TEXT,
+                winner_account_id TEXT,
+                FOREIGN KEY(challenger_account_id) REFERENCES accounts(id) ON DELETE CASCADE,
+                FOREIGN KEY(opponent_account_id) REFERENCES accounts(id) ON DELETE CASCADE
+            )
+        """)
+        connection.execute("""
             CREATE TABLE IF NOT EXISTS elo_milestone_awards (
                 id TEXT PRIMARY KEY,
                 account_id TEXT NOT NULL,
@@ -176,6 +198,11 @@ def initialize_database() -> None:
         _ensure_column(connection, "placed_bets", "settled_at", "TEXT")
         _ensure_column(connection, "account_state", "friends_json", "TEXT NOT NULL DEFAULT '[]'")
         _rename_column(connection, "elo_milestone_awards", "bonus_coins", "bonus_beths")
+        # `friend_challenges` originally only supported match challenges (007-retos-entre-amigos);
+        # these three columns add the "custom" (title + options, manually resolved) variant.
+        _ensure_column(connection, "friend_challenges", "challenge_type", "TEXT NOT NULL DEFAULT 'match'")
+        _ensure_column(connection, "friend_challenges", "title", "TEXT")
+        _ensure_column(connection, "friend_challenges", "options_json", "TEXT NOT NULL DEFAULT '[]'")
         connection.commit()
 
 

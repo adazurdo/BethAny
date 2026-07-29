@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Animated, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-import { colors, radii, spacing, fontSizes, fontWeights } from "../theme";
+import { colors, radii, shadows, spacing, fontSizes, fontWeights } from "../theme";
 import { useBetSlip, BetSlipTab, Selection } from "./BetSlipContext";
 import type { EloPreview, QuickStakeOption } from "../data/eloPreview";
 import { BethsIcon } from "./BethsIcon";
@@ -47,6 +47,7 @@ type TicketRowProps = {
   stakeValue: string;
   onStakeChange: (value: string) => void;
   onRemove: () => void;
+  onSubmit: () => void;
   eloPreview: EloPreview | null;
   eloCountsToday: boolean;
   quickOptions: QuickStakeOption[];
@@ -55,7 +56,7 @@ type TicketRowProps = {
 // Owns its own exit animation so removing a selection visibly fades/slides it
 // away instead of just vanishing from the list; the real removal only happens
 // once the animation finishes.
-function TicketRow({ selection, activeTab, stakeValue, onStakeChange, onRemove, eloPreview, eloCountsToday, quickOptions }: TicketRowProps) {
+function TicketRow({ selection, activeTab, stakeValue, onStakeChange, onRemove, onSubmit, eloPreview, eloCountsToday, quickOptions }: TicketRowProps) {
   const exitAnim = useRef(new Animated.Value(1)).current;
   const [removing, setRemoving] = useState(false);
 
@@ -103,6 +104,8 @@ function TicketRow({ selection, activeTab, stakeValue, onStakeChange, onRemove, 
               placeholderTextColor={colors.muted}
               keyboardType="decimal-pad"
               style={styles.stakeInput}
+              returnKeyType="done"
+              onSubmitEditing={onSubmit}
             />
             <View style={styles.winningsRow}>
               <Text style={styles.winnings}>{potentialWinnings(stakeValue, selection.odds) ?? "—"}</Text>
@@ -200,6 +203,7 @@ export function BetSlipPanel() {
             stakeValue={stakes[selection.matchId] ?? ""}
             onStakeChange={(value) => setStake(selection.matchId, value)}
             onRemove={() => removeSelection(selection.matchId)}
+            onSubmit={handleConfirm}
             eloPreview={eloPreview(selection.odds, stakes[selection.matchId] ?? "")}
             eloCountsToday={eloRemainingToday > 0}
             quickOptions={quickStakeOptions(selection.odds)}
@@ -221,6 +225,8 @@ export function BetSlipPanel() {
               placeholderTextColor={colors.muted}
               keyboardType="decimal-pad"
               style={styles.stakeInput}
+              returnKeyType="done"
+              onSubmitEditing={handleConfirm}
             />
             <View style={styles.winningsRow}>
               <Text style={styles.winnings}>{potentialWinnings(combinadaStake, combinedOdds) ?? "—"}</Text>
@@ -273,6 +279,7 @@ const styles = StyleSheet.create({
   tabActive: {
     backgroundColor: colors.primary,
     borderColor: colors.primary,
+    ...shadows.selected,
   },
   tabText: {
     color: colors.muted,
@@ -426,6 +433,7 @@ const styles = StyleSheet.create({
   cta: {
     backgroundColor: colors.primary,
     borderRadius: radii.sm,
+    ...shadows.glow,
   },
   ctaDisabled: {
     opacity: 0.6,

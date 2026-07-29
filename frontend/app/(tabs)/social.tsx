@@ -1,14 +1,27 @@
 import { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useRouter } from "expo-router";
+import { useAuth } from "../../components/AuthContext";
+import { ChallengeModal } from "../../components/ChallengeModal";
+import { ChallengeRow } from "../../components/ChallengeRow";
 import { CreateGroupModal } from "../../components/CreateGroupModal";
 import { FriendRow } from "../../components/FriendRow";
 import { FriendSortControl, FriendSortOption } from "../../components/FriendSortControl";
 import { GroupCard } from "../../components/GroupCard";
+import { Icon } from "../../components/Icon";
 import { NotificationBadge } from "../../components/NotificationBadge";
 import { SectionCard } from "../../components/SectionCard";
+import { Tappable } from "../../components/Tappable";
 import { useSocialNotifications } from "../../components/SocialNotificationsContext";
-import { colors, radii, spacing } from "../../theme";
+import { colors, radii, shadows, spacing } from "../../theme";
+import {
+  ChallengeList,
+  acceptChallenge,
+  cancelChallenge,
+  declineChallenge,
+  listMyChallenges,
+  resolveCustomChallenge,
+} from "../../data/challenges";
 import {
   FriendRequest,
   FriendState,
@@ -27,6 +40,8 @@ import {
   sendFriendRequest,
 } from "../../data/social";
 
+const EMPTY_CHALLENGES: ChallengeList = { incoming: [], outgoing: [], active: [], resolved: [] };
+
 function sortFriends(friends: SocialFriend[], sort: FriendSortOption): SocialFriend[] {
   const sorted = [...friends];
   sorted.sort((a, b) => {
@@ -43,13 +58,16 @@ function sortFriends(friends: SocialFriend[], sort: FriendSortOption): SocialFri
 
 export default function SocialScreen() {
   const router = useRouter();
+  const { account } = useAuth();
   const { setFriendRequestCount, setGroupInviteCount, syncGroups, hasGroupUpdate } = useSocialNotifications();
 
   const [friendState, setFriendState] = useState<FriendState>({ friends: [], incomingRequests: [], outgoingRequests: [] });
   const [groups, setGroups] = useState<GroupSummary[]>([]);
   const [groupInvites, setGroupInvites] = useState<IncomingGroupInvite[]>([]);
+  const [challenges, setChallenges] = useState<ChallengeList>(EMPTY_CHALLENGES);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [challengeError, setChallengeError] = useState<string | null>(null);
 
   const [sort, setSort] = useState<FriendSortOption>("eloDesc");
   const [identifier, setIdentifier] = useState("");
@@ -57,6 +75,7 @@ export default function SocialScreen() {
   const [sendingRequest, setSendingRequest] = useState(false);
 
   const [groupModalVisible, setGroupModalVisible] = useState(false);
+  const [challengeModalVisible, setChallengeModalVisible] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -77,11 +96,71 @@ export default function SocialScreen() {
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
+
+    // Loaded separately from the block above on purpose: a failure fetching challenges
+    // (e.g. an older backend process still running without this route) must not blank out
+    // friends/groups, which already loaded fine — it only surfaces inside the Retos section.
+    listMyChallenges()
+      .then((result) => {
+        if (!cancelled) setChallenges(result);
+      })
+      .catch((err) => {
+        if (!cancelled) setChallengeError(err instanceof Error ? err.message : "No se pudieron cargar los retos.");
+      });
+
     return () => {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  async function refreshChallenges() {
+    try {
+      setChallenges(await listMyChallenges());
+    } catch (err) {
+      setChallengeError(err instanceof Error ? err.message : "No se pudieron actualizar los retos.");
+    }
+  }
+
+  async function handleAcceptChallenge(challengeId: string) {
+    setChallengeError(null);
+    try {
+      await acceptChallenge(challengeId);
+      await refreshChallenges();
+    } catch (err) {
+      setChallengeError(err instanceof Error ? err.message : "No se pudo aceptar el reto.");
+    }
+  }
+
+  async function handleDeclineChallenge(challengeId: string) {
+    setChallengeError(null);
+    try {
+      await declineChallenge(challengeId);
+      await refreshChallenges();
+    } catch (err) {
+      setChallengeError(err instanceof Error ? err.message : "No se pudo rechazar el reto.");
+    }
+  }
+
+  async function handleCancelChallenge(challengeId: string) {
+    setChallengeError(null);
+    try {
+      await cancelChallenge(challengeId);
+      await refreshChallenges();
+    } catch (err) {
+      setChallengeError(err instanceof Error ? err.message : "No se pudo cancelar el reto.");
+    }
+  }
+
+  async function handleResolveChallenge(challengeId: string, result: string) {
+    setChallengeError(null);
+    try {
+      await resolveCustomChallenge(challengeId, result);
+      await refreshChallenges();
+    } catch (err) {
+      setChallengeError(err instanceof Error ? err.message : "No se pudo registrar el resultado.");
+    }
+  }
 
   const sortedFriends = useMemo(() => sortFriends(friendState.friends, sort), [friendState.friends, sort]);
 
@@ -185,12 +264,20 @@ export default function SocialScreen() {
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <Text style={styles.pageLabel}>Social</Text>
+      <View style={styles.pageLabelRow}>
+        <Icon glyph="social" size={18} color={colors.primary} />
+        <Text style={styles.pageLabel}>Social</Text>
+      </View>
 
       {loadError ? <Text style={styles.loadErrorText}>{loadError}</Text> : null}
 
       {groupInvites.length > 0 ? (
-        <SectionCard title="Invitaciones a grupos" subtitle="Acepta o rechaza invitaciones pendientes">
+        <SectionCard
+          title="Invitaciones a grupos"
+          subtitle="Acepta o rechaza invitaciones pendientes"
+          icon="groups"
+          accentColor={colors.sky}
+        >
           {groupInvites.map((invite) => (
             <View key={invite.id} style={styles.requestRow}>
               <View style={styles.requestInfo}>
@@ -201,24 +288,32 @@ export default function SocialScreen() {
                 <Text style={styles.requestMeta}>Invitado por {invite.inviterDisplayName}</Text>
               </View>
               <View style={styles.requestActions}>
-                <Pressable style={styles.acceptButton} onPress={() => handleAcceptGroupInvite(invite)}>
+                <Tappable style={styles.acceptButton} onPress={() => handleAcceptGroupInvite(invite)}>
+                  <Icon glyph="check" size={13} color={colors.background} />
                   <Text style={styles.acceptButtonText}>Aceptar</Text>
-                </Pressable>
-                <Pressable style={styles.rejectButton} onPress={() => handleRejectGroupInvite(invite)}>
+                </Tappable>
+                <Tappable style={styles.rejectButton} onPress={() => handleRejectGroupInvite(invite)}>
+                  <Icon glyph="close" size={13} color={colors.danger} />
                   <Text style={styles.rejectButtonText}>Rechazar</Text>
-                </Pressable>
+                </Tappable>
               </View>
             </View>
           ))}
         </SectionCard>
       ) : null}
 
-      <SectionCard title="Grupos de predicciones" subtitle="Compite con tus amigos en espacios de grupo">
+      <SectionCard
+        title="Grupos de predicciones"
+        subtitle="Compite con tus amigos en espacios de grupo"
+        icon="groups"
+        accentColor={colors.sky}
+      >
         <View style={styles.groupList}>
           {groups.length > 0 ? (
             groups.map((group) => (
               <GroupCard
                 key={group.id}
+                id={group.id}
                 name={group.name}
                 memberCount={group.memberCount}
                 hasUpdate={hasGroupUpdate(group.id)}
@@ -229,12 +324,91 @@ export default function SocialScreen() {
             <Text style={styles.emptyText}>Aun no tienes grupos de predicciones.</Text>
           )}
         </View>
-        <Pressable style={styles.createGroupButton} onPress={() => setGroupModalVisible(true)}>
-          <Text style={styles.createGroupText}>+ Crear grupo</Text>
-        </Pressable>
+        <Tappable style={[styles.createGroupButton, { backgroundColor: colors.sky }]} onPress={() => setGroupModalVisible(true)}>
+          <Icon glyph="add" size={16} color={colors.background} />
+          <Text style={styles.createGroupText}>Crear grupo</Text>
+        </Tappable>
       </SectionCard>
 
-      <SectionCard title="Amigos" subtitle="Envia una solicitud por identificador de cuenta; el otro usuario debe aceptarla">
+      <SectionCard
+        title="Retos"
+        subtitle="Reta a un amigo 1 contra 1 y suma victorias en vuestro historial"
+        icon="challenge"
+        accentColor={colors.pink}
+      >
+        {challengeError ? <Text style={styles.friendErrorText}>{challengeError}</Text> : null}
+
+        {challenges.incoming.length > 0 ? (
+          <View style={styles.requestGroup}>
+            <Text style={styles.requestGroupTitle}>Retos recibidos</Text>
+            {challenges.incoming.map((challenge) => (
+              <ChallengeRow
+                key={challenge.id}
+                challenge={challenge}
+                myAccountId={account?.accountId ?? ""}
+                onAccept={() => handleAcceptChallenge(challenge.id)}
+                onDecline={() => handleDeclineChallenge(challenge.id)}
+              />
+            ))}
+          </View>
+        ) : null}
+
+        {challenges.outgoing.length > 0 ? (
+          <View style={styles.requestGroup}>
+            <Text style={styles.requestGroupTitle}>Retos enviados</Text>
+            {challenges.outgoing.map((challenge) => (
+              <ChallengeRow
+                key={challenge.id}
+                challenge={challenge}
+                myAccountId={account?.accountId ?? ""}
+                onCancel={() => handleCancelChallenge(challenge.id)}
+              />
+            ))}
+          </View>
+        ) : null}
+
+        {challenges.active.length > 0 ? (
+          <View style={styles.requestGroup}>
+            <Text style={styles.requestGroupTitle}>En curso</Text>
+            {challenges.active.map((challenge) => (
+              <ChallengeRow
+                key={challenge.id}
+                challenge={challenge}
+                myAccountId={account?.accountId ?? ""}
+                onResolve={(result) => handleResolveChallenge(challenge.id, result)}
+              />
+            ))}
+          </View>
+        ) : null}
+
+        {challenges.resolved.length > 0 ? (
+          <View style={styles.requestGroup}>
+            <Text style={styles.requestGroupTitle}>Resueltos</Text>
+            {challenges.resolved.map((challenge) => (
+              <ChallengeRow key={challenge.id} challenge={challenge} myAccountId={account?.accountId ?? ""} />
+            ))}
+          </View>
+        ) : null}
+
+        {challenges.incoming.length === 0 &&
+        challenges.outgoing.length === 0 &&
+        challenges.active.length === 0 &&
+        challenges.resolved.length === 0 ? (
+          <Text style={styles.emptyText}>Aun no tienes retos. Reta a un amigo a una apuesta 1 contra 1.</Text>
+        ) : null}
+
+        <Tappable style={[styles.createGroupButton, { backgroundColor: colors.pink }]} onPress={() => setChallengeModalVisible(true)}>
+          <Icon glyph="add" size={16} color={colors.background} />
+          <Text style={styles.createGroupText}>Nuevo reto</Text>
+        </Tappable>
+      </SectionCard>
+
+      <SectionCard
+        title="Amigos"
+        subtitle="Envia una solicitud por identificador de cuenta; el otro usuario debe aceptarla"
+        icon="friends"
+        accentColor={colors.teal}
+      >
         <View style={styles.addFriendRow}>
           <TextInput
             style={styles.addFriendInput}
@@ -243,10 +417,13 @@ export default function SocialScreen() {
             value={identifier}
             onChangeText={setIdentifier}
             autoCapitalize="none"
+            returnKeyType="send"
+            onSubmitEditing={() => handleSendRequest()}
           />
-          <Pressable style={styles.addFriendButton} onPress={handleSendRequest} disabled={sendingRequest}>
+          <Tappable style={styles.addFriendButton} onPress={handleSendRequest} disabled={sendingRequest}>
+            <Icon glyph="send" size={14} color={colors.background} />
             <Text style={styles.addFriendButtonText}>{sendingRequest ? "Enviando..." : "Enviar solicitud"}</Text>
-          </Pressable>
+          </Tappable>
         </View>
         {friendError ? <Text style={styles.friendErrorText}>{friendError}</Text> : null}
 
@@ -263,12 +440,14 @@ export default function SocialScreen() {
                   <Text style={styles.requestMeta}>Elo {request.elo}</Text>
                 </View>
                 <View style={styles.requestActions}>
-                  <Pressable style={styles.acceptButton} onPress={() => handleAcceptRequest(request.id)}>
+                  <Tappable style={styles.acceptButton} onPress={() => handleAcceptRequest(request.id)}>
+                    <Icon glyph="check" size={13} color={colors.background} />
                     <Text style={styles.acceptButtonText}>Aceptar</Text>
-                  </Pressable>
-                  <Pressable style={styles.rejectButton} onPress={() => handleRejectRequest(request.id)}>
+                  </Tappable>
+                  <Tappable style={styles.rejectButton} onPress={() => handleRejectRequest(request.id)}>
+                    <Icon glyph="close" size={13} color={colors.danger} />
                     <Text style={styles.rejectButtonText}>Rechazar</Text>
-                  </Pressable>
+                  </Tappable>
                 </View>
               </View>
             ))}
@@ -295,9 +474,12 @@ export default function SocialScreen() {
           sortedFriends.map((friend) => (
             <FriendRow
               key={friend.accountId}
+              accountId={friend.accountId}
               displayName={friend.displayName}
               avatarUrl={friend.avatarUrl}
               elo={friend.elo}
+              challengeWins={friend.challengeWins}
+              challengeLosses={friend.challengeLosses}
               onRemove={() => handleRemoveFriend(friend.accountId)}
             />
           ))
@@ -307,6 +489,12 @@ export default function SocialScreen() {
       </SectionCard>
 
       <CreateGroupModal visible={groupModalVisible} onClose={() => setGroupModalVisible(false)} onCreate={handleCreateGroup} />
+      <ChallengeModal
+        visible={challengeModalVisible}
+        friends={friendState.friends}
+        onClose={() => setChallengeModalVisible(false)}
+        onCreated={refreshChallenges}
+      />
     </ScrollView>
   );
 }
@@ -336,6 +524,11 @@ const styles = StyleSheet.create({
     gap: spacing.lg,
     paddingBottom: 96,
   },
+  pageLabelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
   pageLabel: {
     color: colors.primaryDark,
     fontWeight: "900",
@@ -345,15 +538,17 @@ const styles = StyleSheet.create({
   loadErrorText: {
     color: colors.danger,
   },
-  groupList: {
-    gap: spacing.sm,
-  },
+  groupList: {},
   createGroupButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
     alignSelf: "flex-start",
     backgroundColor: colors.primary,
     borderRadius: radii.pill,
     paddingHorizontal: spacing.md,
     paddingVertical: 10,
+    ...shadows.glow,
   },
   createGroupText: {
     color: colors.background,
@@ -374,7 +569,10 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
   addFriendButton: {
-    backgroundColor: colors.primary,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: colors.teal,
     borderRadius: radii.sm,
     paddingHorizontal: spacing.md,
     justifyContent: "center",
@@ -426,7 +624,10 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   acceptButton: {
-    backgroundColor: colors.primary,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: colors.success,
     borderRadius: radii.pill,
     paddingHorizontal: spacing.sm,
     paddingVertical: 8,
@@ -437,6 +638,9 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   rejectButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
     borderRadius: radii.pill,
     borderWidth: 1,
     borderColor: colors.danger,

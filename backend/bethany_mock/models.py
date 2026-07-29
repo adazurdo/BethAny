@@ -185,6 +185,31 @@ class PlacedBet:
 
 
 @dataclass
+class FriendChallenge:
+    id: str
+    challenger_account_id: str
+    opponent_account_id: str
+    match_id: str
+    match_label: str
+    outcome: str
+    status: str = "pending"
+    created_at: str = ""
+    responded_at: str | None = None
+    settled_at: str | None = None
+    result: str | None = None
+    winner_account_id: str | None = None
+    # "match" (tied to an official mock match, auto-settled) or "custom" (free-form bet
+    # proposed by the challenger — title + options — resolved manually, see
+    # challenge_repository.resolve_custom_challenge).
+    challenge_type: str = "match"
+    title: str | None = None
+    options: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
 class EloMilestoneAward:
     id: str
     account_id: str
@@ -194,11 +219,6 @@ class EloMilestoneAward:
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
-
-
-@dataclass
-class SessionState:
-    active_account_id: str | None = None
 
 
 @dataclass
