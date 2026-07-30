@@ -10,6 +10,9 @@ export type CompetitionSource = {
   syncStatus: CompetitionSyncStatus;
   lastSyncedAt: string | null;
   lastError: string | null;
+  // False while football-data.org has no published fixtures yet and the backend is
+  // showing generate_mock_matches()'s synthetic pairings instead.
+  hasRealFixtures: boolean;
 };
 
 export type MockTeam = {
@@ -58,6 +61,7 @@ type RawCompetitionSource = {
   sync_status: CompetitionSyncStatus;
   last_synced_at: string | null;
   last_error: string | null;
+  has_real_fixtures: boolean;
 };
 
 type RawMockTeam = {
@@ -98,6 +102,7 @@ function toCompetitionSource(raw: RawCompetitionSource): CompetitionSource {
     syncStatus: raw.sync_status,
     lastSyncedAt: raw.last_synced_at,
     lastError: raw.last_error,
+    hasRealFixtures: raw.has_real_fixtures,
   };
 }
 

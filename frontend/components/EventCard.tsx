@@ -11,10 +11,6 @@ type TeamInfo = {
   crestUrl?: string;
 };
 
-// Present only for matches backed by a real match id + 1X2 market (football
-// competitions synced from 003-datos-mock). Static non-football mock events
-// have no backend match to validate against, so they keep a disabled "Apostar"
-// affordance instead of joining the real bet slip (see spec Assumptions).
 type MatchOdds = {
   matchId: string;
   homeOdds: number;
@@ -29,10 +25,9 @@ type EventCardProps = {
   league: string;
   startLabel: string;
   featured?: boolean;
-  tone?: string;
   homeTeam?: TeamInfo;
   awayTeam?: TeamInfo;
-  match?: MatchOdds;
+  match: MatchOdds;
 };
 
 const OUTCOME_LABELS: Record<BetOutcome, string> = {
@@ -47,11 +42,11 @@ const OUTCOME_ODDS_KEYS: Record<BetOutcome, keyof MatchOdds> = {
   visitante: "awayOdds",
 };
 
-export function EventCard({ title, sport, league, startLabel, featured, tone, homeTeam, awayTeam, match }: EventCardProps) {
+export function EventCard({ title, sport, league, startLabel, featured, homeTeam, awayTeam, match }: EventCardProps) {
   const { addSelection, isSelected } = useBetSlip();
 
   const scale = new Animated.Value(1);
-  const isOpenForBetting = match ? match.status.toLowerCase() === "scheduled" || match.status.toLowerCase() === "timed" : false;
+  const isOpenForBetting = match.status.toLowerCase() === "scheduled" || match.status.toLowerCase() === "timed";
 
   // "Flies" a small copy of the tapped odd up and away, toward where the
   // boleto lives (the desktop right rail, or the mobile "Ver boleto" access
@@ -82,7 +77,7 @@ export function EventCard({ title, sport, league, startLabel, featured, tone, ho
   }
 
   function handlePickOutcome(outcome: BetOutcome) {
-    if (!match || !isOpenForBetting) return;
+    if (!isOpenForBetting) return;
     const odds = match[OUTCOME_ODDS_KEYS[outcome]] as number;
     const isAdding = !isSelected(match.matchId, outcome);
     Animated.sequence([
@@ -100,7 +95,7 @@ export function EventCard({ title, sport, league, startLabel, featured, tone, ho
   return (
     <View style={[styles.card, { borderBottomColor: sportAccent }, featured ? styles.featured : undefined]}>
       <View style={styles.topRow}>
-        <View style={[styles.badge, { backgroundColor: tone ? colors.surfaceSoft : sportAccent }]}>
+        <View style={[styles.badge, { backgroundColor: sportAccent }]}>
           <Text style={styles.badgeText}>{sport}</Text>
         </View>
         {featured ? (
@@ -134,44 +129,35 @@ export function EventCard({ title, sport, league, startLabel, featured, tone, ho
         <Text style={styles.time}>{startLabel}</Text>
       </View>
 
-      {match ? (
-        <Animated.View style={[styles.outcomesRow, { transform: [{ scale }] }]}>
-          {(["local", "empate", "visitante"] as BetOutcome[]).map((outcome) => {
-            const selected = isSelected(match.matchId, outcome);
-            const odds = match[OUTCOME_ODDS_KEYS[outcome]] as number;
-            return (
-              <Pressable
-                key={outcome}
-                onPressIn={animatePressIn}
-                onPressOut={animatePressOut}
-                onPress={() => handlePickOutcome(outcome)}
-                disabled={!isOpenForBetting}
-                style={({ pressed }) => [
-                  styles.outcomeButton,
-                  selected ? styles.outcomeButtonSelected : null,
-                  !isOpenForBetting ? styles.outcomeButtonDisabled : null,
-                  pressed ? styles.pressed : null,
-                ]}
-              >
-                {selected ? (
-                  <View style={styles.selectedBadge}>
-                    <Icon glyph="check" size={12} color={colors.background} />
-                  </View>
-                ) : null}
-                <Text style={[styles.outcomeLabel, selected ? styles.outcomeLabelSelected : null]}>{OUTCOME_LABELS[outcome]}</Text>
-                <Text style={[styles.outcomeOdds, selected ? styles.outcomeLabelSelected : null]}>{isOpenForBetting ? odds.toFixed(2) : "—"}</Text>
-              </Pressable>
-            );
-          })}
-        </Animated.View>
-      ) : (
-        <View style={styles.actions}>
-          <View style={[styles.addButton, styles.addButtonDisabled]}>
-            <Text style={styles.addLabelDisabled}>Apostar</Text>
-            <Text style={styles.addOddDisabled}>Próximamente</Text>
-          </View>
-        </View>
-      )}
+      <Animated.View style={[styles.outcomesRow, { transform: [{ scale }] }]}>
+        {(["local", "empate", "visitante"] as BetOutcome[]).map((outcome) => {
+          const selected = isSelected(match.matchId, outcome);
+          const odds = match[OUTCOME_ODDS_KEYS[outcome]] as number;
+          return (
+            <Pressable
+              key={outcome}
+              onPressIn={animatePressIn}
+              onPressOut={animatePressOut}
+              onPress={() => handlePickOutcome(outcome)}
+              disabled={!isOpenForBetting}
+              style={({ pressed }) => [
+                styles.outcomeButton,
+                selected ? styles.outcomeButtonSelected : null,
+                !isOpenForBetting ? styles.outcomeButtonDisabled : null,
+                pressed ? styles.pressed : null,
+              ]}
+            >
+              {selected ? (
+                <View style={styles.selectedBadge}>
+                  <Icon glyph="check" size={12} color={colors.background} />
+                </View>
+              ) : null}
+              <Text style={[styles.outcomeLabel, selected ? styles.outcomeLabelSelected : null]}>{OUTCOME_LABELS[outcome]}</Text>
+              <Text style={[styles.outcomeOdds, selected ? styles.outcomeLabelSelected : null]}>{isOpenForBetting ? odds.toFixed(2) : "—"}</Text>
+            </Pressable>
+          );
+        })}
+      </Animated.View>
 
       {flying ? (
         <Animated.View
@@ -346,36 +332,6 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     fontSize: 13,
     marginTop: 2,
-  },
-  actions: {
-    marginTop: 10,
-    flexDirection: "row",
-  },
-  addButton: {
-    flex: 1,
-    backgroundColor: colors.primary,
-    borderRadius: radii.sm,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    ...shadows.glow,
-  },
-  addButtonDisabled: {
-    backgroundColor: colors.surfaceSoft,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  addLabelDisabled: {
-    color: colors.muted,
-    fontWeight: "900",
-    letterSpacing: 0.2,
-  },
-  addOddDisabled: {
-    color: colors.muted,
-    fontWeight: "700",
-    fontSize: 12,
   },
   pressed: {
     opacity: 0.9,

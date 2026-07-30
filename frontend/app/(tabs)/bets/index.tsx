@@ -5,6 +5,7 @@ import { fetchMyBets, PlacedBet } from "../../../data/bets";
 import { BethsIcon } from "../../../components/BethsIcon";
 import { Icon } from "../../../components/Icon";
 import { Tappable } from "../../../components/Tappable";
+import { useStreak } from "../../../components/StreakContext";
 
 const OUTCOME_LABELS: Record<string, string> = {
   local: "Local",
@@ -56,12 +57,16 @@ export default function MyBetsScreen() {
   const [bets, setBets] = useState<PlacedBet[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<FilterOption>("todas");
+  const { reportBets } = useStreak();
 
   useEffect(() => {
     let cancelled = false;
     fetchMyBets()
       .then((result) => {
-        if (!cancelled) setBets(result);
+        if (!cancelled) {
+          setBets(result);
+          reportBets(result);
+        }
       })
       .catch((err) => {
         if (!cancelled) setError(err instanceof Error ? err.message : "No se pudieron cargar tus apuestas.");

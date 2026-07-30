@@ -5,15 +5,17 @@ import { BetSlipPanel } from "./BetSlipPanel";
 import { BetSlipSheet } from "./BetSlipSheet";
 import { useLocalSearchParams, usePathname, useRouter } from "expo-router";
 import { fetchMockCompetitions } from "../data/mockCompetitions";
+import { useStreak } from "./StreakContext";
+import { useAuth } from "./AuthContext";
+import { EconomyBadges } from "./EconomyBadges";
 
 type Props = {
   children: React.ReactNode;
 };
 
-// Fallback used until the football-data.org-backed competitions load, or if the
-// local API is unreachable; other sports keep static mocks in this phase.
-const DEFAULT_COMPETITIONS = ["Mundial 2026", "LaLiga", "Champions", "ATP Wimbledon", "Moto GP"];
-const STATIC_ONLY_COMPETITIONS = ["ATP Wimbledon", "Moto GP"];
+// Fallback used until the football-data.org-backed competitions load, or if the local API
+// is unreachable. Football-only: no other sport is backed by real data right now.
+const DEFAULT_COMPETITIONS = ["Mundial 2026", "LaLiga", "Champions"];
 
 export function DesktopShell({ children }: Props) {
   const router = useRouter();
@@ -24,13 +26,20 @@ export function DesktopShell({ children }: Props) {
   const activeCompetition = params.competition ?? "Mundial 2026";
 
   const [footballCompetitionNames, setFootballCompetitionNames] = useState<string[] | null>(null);
+  const { triggerTestStreak } = useStreak();
+  const { account } = useAuth();
+  const elo = account?.profile.elo ?? 0;
+  const beths = account?.profile.beths ?? 0;
 
   useEffect(() => {
     let cancelled = false;
     fetchMockCompetitions()
       .then((sources) => {
         if (!cancelled) {
-          setFootballCompetitionNames(sources.map((source) => source.displayName));
+          // Only list competitions that currently have real fixtures (e.g. a finished or
+          // not-yet-scheduled tournament like Mundial 2026 has none) so the sidebar never
+          // links to an empty "Partidos" screen.
+          setFootballCompetitionNames(sources.filter((source) => source.hasRealFixtures).map((source) => source.displayName));
         }
       })
       .catch(() => {
@@ -43,9 +52,7 @@ export function DesktopShell({ children }: Props) {
     };
   }, []);
 
-  const competitions = footballCompetitionNames
-    ? [...footballCompetitionNames, ...STATIC_ONLY_COMPETITIONS]
-    : DEFAULT_COMPETITIONS;
+  const competitions = footballCompetitionNames ?? DEFAULT_COMPETITIONS;
 
   function isCompetitionActive(label: string) {
     return pathname === "/matches" && activeCompetition === label;
@@ -60,6 +67,14 @@ export function DesktopShell({ children }: Props) {
       <View style={styles.mobileContainer}>
         {children}
         <BetSlipSheet />
+        <View style={styles.debugFloating}>
+          <Pressable style={[styles.debugButton, styles.debugButtonWin]} onPress={() => triggerTestStreak("win")}>
+            <Text style={styles.debugButtonText}>Racha win</Text>
+          </Pressable>
+          <Pressable style={[styles.debugButton, styles.debugButtonLoss]} onPress={() => triggerTestStreak("loss")}>
+            <Text style={styles.debugButtonText}>Racha loose</Text>
+          </Pressable>
+        </View>
       </View>
     );
   }
@@ -70,6 +85,9 @@ export function DesktopShell({ children }: Props) {
         <Text style={styles.brand}>BETHANY SPORTS</Text>
         <View style={styles.searchBox}>
           <Text style={styles.searchText}>Buscar mercados</Text>
+        </View>
+        <View style={styles.economyRow}>
+          <EconomyBadges elo={elo} beths={beths} stacked />
         </View>
         <Text style={styles.sideSubtitle}>Competiciones destacadas</Text>
         <View style={styles.navList}>
@@ -85,6 +103,16 @@ export function DesktopShell({ children }: Props) {
               </Pressable>
             );
           })}
+        </View>
+
+        <Text style={styles.sideSubtitle}>Debug (provisional)</Text>
+        <View style={styles.debugGroup}>
+          <Pressable style={[styles.debugButton, styles.debugButtonWin]} onPress={() => triggerTestStreak("win")}>
+            <Text style={styles.debugButtonText}>Racha win</Text>
+          </Pressable>
+          <Pressable style={[styles.debugButton, styles.debugButtonLoss]} onPress={() => triggerTestStreak("loss")}>
+            <Text style={styles.debugButtonText}>Racha loose</Text>
+          </Pressable>
         </View>
       </View>
 
@@ -135,6 +163,9 @@ const styles = StyleSheet.create({
     borderRadius: radii.pill,
     paddingVertical: 10,
     paddingHorizontal: 12,
+  },
+  economyRow: {
+    marginTop: spacing.md,
   },
   searchText: {
     color: colors.muted,
@@ -196,6 +227,36 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     marginBottom: spacing.sm,
     fontSize: 16,
+  },
+  debugGroup: {
+    marginTop: spacing.sm,
+    gap: spacing.sm,
+  },
+  debugFloating: {
+    position: "absolute",
+    left: spacing.sm,
+    bottom: spacing.sm,
+    gap: spacing.sm,
+    zIndex: 20,
+  },
+  debugButton: {
+    borderRadius: radii.pill,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderWidth: 1,
+  },
+  debugButtonWin: {
+    backgroundColor: "rgba(34,197,94,0.15)",
+    borderColor: colors.success,
+  },
+  debugButtonLoss: {
+    backgroundColor: "rgba(244,80,109,0.15)",
+    borderColor: colors.danger,
+  },
+  debugButtonText: {
+    color: colors.text,
+    fontWeight: "800",
+    fontSize: 12,
   },
 });
 

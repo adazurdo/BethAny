@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import random
-import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
 from typing import Any
 
 from .models import MockMatch, TeamSnapshot
@@ -91,39 +89,3 @@ def _format_kickoff(utc_date: str) -> str:
     except ValueError:
         return "Fecha por confirmar"
     return dt.strftime("%a %d %b %H:%M")
-
-
-def generate_mock_matches(competition_code: str, teams: list[TeamSnapshot], count: int = 6, seed: int | None = None) -> list[MockMatch]:
-    if len(teams) < 2:
-        return []
-
-    rng = random.Random(seed)
-    target = min(count, (len(teams) * (len(teams) - 1)) // 2)
-    matches: list[MockMatch] = []
-    seen_pairs: set[tuple[str, str]] = set()
-    now = datetime.now(timezone.utc)
-    max_attempts = target * 12 + 12
-
-    attempts = 0
-    while len(matches) < target and attempts < max_attempts:
-        attempts += 1
-        home, away = rng.sample(teams, 2)
-        pair_key = tuple(sorted((home.id, away.id)))
-        if pair_key in seen_pairs:
-            continue
-        seen_pairs.add(pair_key)
-
-        kickoff = now + timedelta(days=rng.randint(0, 6), hours=rng.randint(9, 22))
-        matches.append(
-            MockMatch(
-                id=f"mock-{competition_code}-{uuid.uuid4().hex[:8]}",
-                competition_code=competition_code,
-                home_team_id=home.id,
-                home_team_name=home.name,
-                away_team_id=away.id,
-                away_team_name=away.name,
-                kickoff_label=kickoff.strftime("%a %d %b %H:%M"),
-            )
-        )
-
-    return matches

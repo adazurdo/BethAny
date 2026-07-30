@@ -150,6 +150,16 @@ def _serialize_match(match) -> dict[str, Any]:
     return {**match.to_dict(), **generate_match_odds(match.id).to_dict()}
 
 
+def _serialize_competition_source(source, snapshot=None) -> dict[str, Any]:
+    """Adds `has_real_fixtures` so clients (the home screen) can prefer a competition that
+    already has fixtures from football-data.org over one that doesn't have any published
+    yet (e.g. a tournament whose fixtures aren't scheduled yet) — there is no synthetic
+    fallback, so an empty snapshot just means "nothing to show yet"."""
+    resolved_snapshot = snapshot if snapshot is not None else get_snapshot(source.code)
+    has_real_fixtures = bool(resolved_snapshot and resolved_snapshot.matches)
+    return {**source.to_dict(), "has_real_fixtures": has_real_fixtures}
+
+
 def _coerce_bets(payload: list[dict[str, Any]]) -> list[BetRecord]:
     bets: list[BetRecord] = []
     for item in payload:
@@ -248,7 +258,7 @@ class BethanyRequestHandler(BaseHTTPRequestHandler):
 
         if segments[:2] == ["mock", "competitions"]:
             if len(segments) == 2:
-                competitions = [source.to_dict() for source in list_competition_sources()]
+                competitions = [_serialize_competition_source(source) for source in list_competition_sources()]
                 _json_response(self, HTTPStatus.OK, {"competitions": competitions})
                 return
 
@@ -266,7 +276,7 @@ class BethanyRequestHandler(BaseHTTPRequestHandler):
                         **snapshot.to_dict(),
                         "matches": [_serialize_match(match) for match in snapshot.matches],
                     }
-                _json_response(self, HTTPStatus.OK, {"source": source.to_dict(), "snapshot": snapshot_payload})
+                _json_response(self, HTTPStatus.OK, {"source": _serialize_competition_source(source, snapshot), "snapshot": snapshot_payload})
                 return
 
             if len(segments) == 4 and segments[3] == "matches":
@@ -274,7 +284,7 @@ class BethanyRequestHandler(BaseHTTPRequestHandler):
                     self,
                     HTTPStatus.OK,
                     {
-                        "source": source.to_dict(),
+                        "source": _serialize_competition_source(source, snapshot),
                         "teams": [team.to_dict() for team in snapshot.teams] if snapshot else [],
                         "matches": [_serialize_match(match) for match in snapshot.matches] if snapshot else [],
                     },
@@ -574,7 +584,7 @@ class BethanyRequestHandler(BaseHTTPRequestHandler):
                 }
             payload: dict[str, Any] = {
                 "ok": result["ok"],
-                "source": result["source"].to_dict() if result.get("source") else None,
+                "source": _serialize_competition_source(result["source"], synced_snapshot) if result.get("source") else None,
                 "snapshot": snapshot_payload,
             }
             if not result["ok"]:

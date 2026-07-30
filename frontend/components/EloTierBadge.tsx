@@ -1,22 +1,43 @@
-import { StyleSheet, Text, View } from "react-native";
-import { Icon } from "./Icon";
-import { tierForElo } from "../data/eloTiers";
+import { useState } from "react";
+import { Pressable, StyleSheet, Text } from "react-native";
+import { EloTierListModal } from "./EloTierListModal";
+import { tierForElo, withAlpha } from "../data/eloTiers";
 import { radii } from "../theme";
 
 type EloTierBadgeProps = {
   elo: number;
-  size?: "sm" | "md";
+  size?: "sm" | "md" | "xl";
 };
 
+const SIZE_STYLES = {
+  sm: { badge: "badgeCompact", text: "textCompact", emoji: "emojiCompact" },
+  md: { badge: "badgeLarge", text: "textLarge", emoji: "emojiLarge" },
+  xl: { badge: "badgeHero", text: "textHero", emoji: "emojiHero" },
+} as const;
+
+// Tapping the badge anywhere it's shown (ranking, own profile, a friend's profile) opens the
+// full ladder so "what Elo do I need for the next category" is always one tap away.
 export function EloTierBadge({ elo, size = "sm" }: EloTierBadgeProps) {
   const tier = tierForElo(elo);
-  const compact = size === "sm";
+  const variant = SIZE_STYLES[size];
+  const [listVisible, setListVisible] = useState(false);
 
   return (
-    <View style={[styles.badge, { borderColor: tier.color }, compact ? styles.badgeCompact : styles.badgeLarge]}>
-      <Icon glyph="shield" size={compact ? 12 : 16} color={tier.color} />
-      <Text style={[styles.text, { color: tier.color }, compact ? styles.textCompact : styles.textLarge]}>{tier.name}</Text>
-    </View>
+    <>
+      <Pressable
+        onPress={() => setListVisible(true)}
+        style={[
+          styles.badge,
+          { borderColor: tier.color, backgroundColor: withAlpha(tier.color, "22") },
+          styles[variant.badge],
+          size === "xl" ? { shadowColor: tier.color } : null,
+        ]}
+      >
+        <Text style={styles[variant.emoji]}>{tier.emoji}</Text>
+        <Text style={[styles.text, { color: tier.color }, styles[variant.text]]}>{tier.name}</Text>
+      </Pressable>
+      <EloTierListModal visible={listVisible} onClose={() => setListVisible(false)} elo={elo} />
+    </>
   );
 }
 
@@ -37,6 +58,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
   },
+  badgeHero: {
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderWidth: 2,
+    gap: 8,
+    shadowOpacity: 0.55,
+    shadowOffset: { width: 0, height: 0 },
+    shadowRadius: 16,
+    elevation: 8,
+  },
   text: {
     fontWeight: "800",
     textTransform: "uppercase",
@@ -47,5 +78,18 @@ const styles = StyleSheet.create({
   },
   textLarge: {
     fontSize: 13,
+  },
+  textHero: {
+    fontSize: 17,
+    letterSpacing: 0.6,
+  },
+  emojiCompact: {
+    fontSize: 11,
+  },
+  emojiLarge: {
+    fontSize: 15,
+  },
+  emojiHero: {
+    fontSize: 22,
   },
 });

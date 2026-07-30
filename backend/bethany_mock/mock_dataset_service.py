@@ -8,7 +8,7 @@ from .football_data_client import (
     fetch_competition_standings,
     fetch_competition_teams,
 )
-from .mock_dataset import generate_mock_matches, normalize_matches, normalize_teams
+from .mock_dataset import normalize_matches, normalize_teams
 from .mock_dataset_repository import get_competition_source, get_snapshot, mark_sync_failure, save_snapshot
 
 
@@ -34,10 +34,8 @@ def sync_competition(code: str) -> dict[str, Any]:
         except FootballDataError:
             matches = []
 
-        # Fall back to synthetic pairings only when the source has no real fixtures to offer.
-        if not matches:
-            matches = generate_mock_matches(code, teams)
-
+        # No synthetic fallback: if football-data.org has no fixtures yet, the snapshot
+        # simply has no matches rather than showing invented pairings as if real.
         snapshot = save_snapshot(code, teams, matches)
         refreshed_source = get_competition_source(code)
         return {"ok": True, "source": refreshed_source, "snapshot": snapshot}

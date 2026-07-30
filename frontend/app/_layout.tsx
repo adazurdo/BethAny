@@ -5,6 +5,7 @@ import { colors } from "../theme";
 import { BetSlipProvider } from "../components/BetSlipContext";
 import { AuthProvider } from "../components/AuthContext";
 import { SocialNotificationsProvider } from "../components/SocialNotificationsContext";
+import { StreakProvider } from "../components/StreakContext";
 
 export default function RootLayout() {
   return (
@@ -13,11 +14,13 @@ export default function RootLayout() {
       <AuthProvider>
         <SocialNotificationsProvider>
           <BetSlipProvider>
-            <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
-              <Stack.Screen name="index" />
-              <Stack.Screen name="(auth)" />
-              <Stack.Screen name="(tabs)" />
-            </Stack>
+            <StreakProvider>
+              <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
+                <Stack.Screen name="index" />
+                <Stack.Screen name="(auth)" />
+                <Stack.Screen name="(tabs)" />
+              </Stack>
+            </StreakProvider>
           </BetSlipProvider>
         </SocialNotificationsProvider>
       </AuthProvider>

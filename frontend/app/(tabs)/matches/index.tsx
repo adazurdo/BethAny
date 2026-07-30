@@ -6,7 +6,6 @@ import { SectionCard } from "../../../components/SectionCard";
 import { EventCard } from "../../../components/EventCard";
 import { Icon } from "../../../components/Icon";
 import { Tappable } from "../../../components/Tappable";
-import { mockEvents } from "../../../data";
 import {
   CompetitionSource,
   MockCompetitionMatch,
@@ -21,8 +20,7 @@ export default function MatchesByCompetitionScreen() {
   const params = useLocalSearchParams<{ competition?: string }>();
   const competition = params.competition ?? "Mundial 2026";
 
-  // Football competitions are backed by football-data.org mocks (User Story 1/2);
-  // other sports keep the existing static mocks in this phase.
+  // Only football competitions backed by football-data.org are supported now.
   const [source, setSource] = useState<CompetitionSource | null>(null);
   const [teams, setTeams] = useState<MockTeam[] | null>(null);
   const [matches, setMatches] = useState<MockCompetitionMatch[] | null>(null);
@@ -59,15 +57,12 @@ export default function MatchesByCompetitionScreen() {
     loadCompetition();
   }, [loadCompetition]);
 
-  const staticEvents = useMemo(() => mockEvents.filter((event) => event.league === competition), [competition]);
-
   const teamsById = useMemo(() => {
     const map = new Map<string, MockTeam>();
     (teams ?? []).forEach((team) => map.set(team.id, team));
     return map;
   }, [teams]);
 
-  const isFootballBacked = source !== null;
   const isStale = source?.syncStatus === "stale" || source?.syncStatus === "error";
 
   async function handleSync() {
@@ -101,12 +96,12 @@ export default function MatchesByCompetitionScreen() {
           <Text style={styles.kicker}>Competicion</Text>
         </View>
         <Text style={styles.title}>{competition}</Text>
-        <Text style={styles.subtitle}>Partidos mock disponibles para esta seccion.</Text>
+        <Text style={styles.subtitle}>Partidos disponibles para esta seccion.</Text>
 
-        {isFootballBacked ? (
+        {source ? (
           <View style={styles.syncRow}>
             <Text style={styles.syncInfo}>
-              {source?.lastSyncedAt ? `Ultima sincronizacion: ${new Date(source.lastSyncedAt).toLocaleString()}` : "Aun no sincronizado"}
+              {source.lastSyncedAt ? `Ultima sincronizacion: ${new Date(source.lastSyncedAt).toLocaleString()}` : "Aun no sincronizado"}
             </Text>
             <Tappable onPress={handleSync} disabled={syncing} style={[styles.syncButton, syncing ? styles.syncButtonPressed : null]}>
               <Icon glyph="matches" size={13} color={colors.background} />
@@ -116,7 +111,7 @@ export default function MatchesByCompetitionScreen() {
         ) : null}
       </View>
 
-      {isFootballBacked && isStale ? (
+      {isStale ? (
         <View style={styles.staleBanner}>
           <Icon glyph="info" size={16} color={colors.warning} />
           <Text style={styles.staleText}>
@@ -132,52 +127,43 @@ export default function MatchesByCompetitionScreen() {
         </View>
       ) : null}
 
-      <SectionCard
-        title="Partidos"
-        subtitle={loading ? "Cargando..." : `${isFootballBacked ? matches?.length ?? 0 : staticEvents.length} eventos mock`}
-        icon="matches"
-        accentColor={colors.sky}
-      >
+      <SectionCard title="Partidos" subtitle={loading ? "Cargando..." : `${matches?.length ?? 0} eventos`} icon="matches" accentColor={colors.sky}>
         <View style={styles.grid}>
           {loading ? (
             <ActivityIndicator color={colors.primary} />
-          ) : isFootballBacked ? (
-            matches && matches.length > 0 ? (
-              matches.map((match) => (
-                <EventCard
-                  key={match.id}
-                  title={`${match.homeTeamName} vs ${match.awayTeamName}`}
-                  sport="Football"
-                  league={competition}
-                  startLabel={match.kickoffLabel}
-                  featured={false}
-                  homeTeam={{ name: match.homeTeamName, crestUrl: teamsById.get(match.homeTeamId)?.crestUrl }}
-                  awayTeam={{ name: match.awayTeamName, crestUrl: teamsById.get(match.awayTeamId)?.crestUrl }}
-                  match={{
-                    matchId: match.id,
-                    homeOdds: match.homeOdds,
-                    drawOdds: match.drawOdds,
-                    awayOdds: match.awayOdds,
-                    status: match.status,
-                  }}
-                />
-              ))
-            ) : (
-              <View style={styles.emptyState}>
-                <Text style={styles.emptyTitle}>No hay partidos mock en esta competencia</Text>
-                <Text style={styles.emptyText}>Sincroniza con football-data.org para generar el catalogo de equipos y partidos.</Text>
-                <Tappable onPress={handleSync} disabled={syncing} style={[styles.syncButton, syncing ? styles.syncButtonPressed : null]}>
-                  <Icon glyph="matches" size={13} color={colors.background} />
-                  <Text style={styles.syncButtonText}>{syncing ? "Sincronizando..." : "Sincronizar ahora"}</Text>
-                </Tappable>
-              </View>
-            )
-          ) : staticEvents.length > 0 ? (
-            staticEvents.map((event) => <EventCard key={event.id} {...event} />)
+          ) : !source ? (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyTitle}>Competicion no disponible</Text>
+              <Text style={styles.emptyText}>Selecciona otra competencia del panel izquierdo.</Text>
+            </View>
+          ) : matches && matches.length > 0 ? (
+            matches.map((match) => (
+              <EventCard
+                key={match.id}
+                title={`${match.homeTeamName} vs ${match.awayTeamName}`}
+                sport="Football"
+                league={competition}
+                startLabel={match.kickoffLabel}
+                featured={false}
+                homeTeam={{ name: match.homeTeamName, crestUrl: teamsById.get(match.homeTeamId)?.crestUrl }}
+                awayTeam={{ name: match.awayTeamName, crestUrl: teamsById.get(match.awayTeamId)?.crestUrl }}
+                match={{
+                  matchId: match.id,
+                  homeOdds: match.homeOdds,
+                  drawOdds: match.drawOdds,
+                  awayOdds: match.awayOdds,
+                  status: match.status,
+                }}
+              />
+            ))
           ) : (
             <View style={styles.emptyState}>
-              <Text style={styles.emptyTitle}>No hay partidos mock en esta competencia</Text>
-              <Text style={styles.emptyText}>Selecciona otra competencia del panel izquierdo.</Text>
+              <Text style={styles.emptyTitle}>No hay partidos disponibles en esta competencia</Text>
+              <Text style={styles.emptyText}>football-data.org todavia no tiene partidos publicados para esta competencia. Prueba a sincronizar mas tarde.</Text>
+              <Tappable onPress={handleSync} disabled={syncing} style={[styles.syncButton, syncing ? styles.syncButtonPressed : null]}>
+                <Icon glyph="matches" size={13} color={colors.background} />
+                <Text style={styles.syncButtonText}>{syncing ? "Sincronizando..." : "Sincronizar ahora"}</Text>
+              </Tappable>
             </View>
           )}
         </View>

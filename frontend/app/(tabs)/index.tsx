@@ -40,7 +40,15 @@ export default function HomeScreen() {
         const sources = await fetchMockCompetitions();
         if (cancelled) return;
         setCompetitions(sources);
-        const preferred = sources.find((s) => s.displayName === PREFERRED_COMPETITION) ?? sources[0] ?? null;
+        // Prefer a competition with genuine football-data.org fixtures over one still
+        // falling back to synthetic pairings (e.g. a tournament with no published fixtures
+        // yet) — real data wins even if it means featuring a different competition.
+        const preferred =
+          sources.find((s) => s.displayName === PREFERRED_COMPETITION && s.hasRealFixtures) ??
+          sources.find((s) => s.hasRealFixtures) ??
+          sources.find((s) => s.displayName === PREFERRED_COMPETITION) ??
+          sources[0] ??
+          null;
         if (!preferred) {
           setFeaturedCompetition(null);
           setFeaturedMatches([]);

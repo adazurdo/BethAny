@@ -8,20 +8,23 @@ type EconomyBadgesProps = {
   elo: number;
   beths: number;
   size?: "md" | "lg";
+  // Stacks the two badges full-width instead of splitting a row in half — for narrow
+  // spaces (e.g. the desktop sidebar) where side-by-side badges have no room to breathe.
+  stacked?: boolean;
 };
 
-export function EconomyBadges({ elo, beths, size = "md" }: EconomyBadgesProps) {
+export function EconomyBadges({ elo, beths, size = "md", stacked = false }: EconomyBadgesProps) {
   const large = size === "lg";
   return (
-    <View style={styles.row}>
-      <View style={[styles.badge, styles.eloBadge, large ? styles.badgeLarge : null]}>
+    <View style={[styles.row, stacked ? styles.rowStacked : null]}>
+      <View style={[styles.badge, styles.eloBadge, large ? styles.badgeLarge : null, stacked ? styles.badgeStacked : null]}>
         <Icon glyph="elo" size={large ? 24 : 18} color={colors.primary} />
         <View>
           <Text style={styles.label}>Elo</Text>
           <Text style={[styles.value, large ? styles.valueLarge : null, { color: colors.primary }]}>{elo}</Text>
         </View>
       </View>
-      <View style={[styles.badge, styles.bethsBadge, large ? styles.badgeLarge : null]}>
+      <View style={[styles.badge, styles.bethsBadge, large ? styles.badgeLarge : null, stacked ? styles.badgeStacked : null]}>
         <BethsIcon size={large ? 24 : 18} color={colors.warning} />
         <View>
           <Text style={styles.label}>Beths</Text>
@@ -73,6 +76,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: spacing.sm,
   },
+  rowStacked: {
+    flexDirection: "column",
+  },
   badge: {
     flex: 1,
     flexDirection: "row",
@@ -84,6 +90,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     ...shadows.glow,
+  },
+  badgeStacked: {
+    flexGrow: 0,
+    flexBasis: "auto",
+    width: "100%",
   },
   eloBadge: {
     borderColor: colors.primary,

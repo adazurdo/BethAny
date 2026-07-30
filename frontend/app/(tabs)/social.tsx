@@ -44,6 +44,8 @@ import {
 
 const EMPTY_CHALLENGES: ChallengeList = { incoming: [], outgoing: [], active: [], resolved: [] };
 
+type SocialTab = "amigos" | "grupos" | "retos";
+
 function sortFriends(friends: SocialFriend[], sort: FriendSortOption): SocialFriend[] {
   const sorted = [...friends];
   sorted.sort((a, b) => {
@@ -80,6 +82,7 @@ export default function SocialScreen() {
 
   const [groupModalVisible, setGroupModalVisible] = useState(false);
   const [challengeModalVisible, setChallengeModalVisible] = useState(false);
+  const [activeTab, setActiveTab] = useState<SocialTab>("amigos");
 
   useEffect(() => {
     let cancelled = false;
@@ -287,6 +290,12 @@ export default function SocialScreen() {
     );
   }
 
+  const tabs: { value: SocialTab; label: string; icon: string; badgeCount: number }[] = [
+    { value: "amigos", label: "Amigos", icon: "friends", badgeCount: friendState.incomingRequests.length },
+    { value: "grupos", label: "Grupos", icon: "groups", badgeCount: groupInvites.length },
+    { value: "retos", label: "Retos", icon: "challenge", badgeCount: challenges.incoming.length },
+  ];
+
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <View style={styles.pageLabelRow}>
@@ -296,144 +305,168 @@ export default function SocialScreen() {
 
       {loadError ? <Text style={styles.loadErrorText}>{loadError}</Text> : null}
 
-      {groupInvites.length > 0 ? (
-        <SectionCard
-          title="Invitaciones a grupos"
-          subtitle="Acepta o rechaza invitaciones pendientes"
-          icon="groups"
-          accentColor={colors.sky}
-        >
-          {groupInvites.map((invite) => (
-            <View key={invite.id} style={styles.requestRow}>
-              <View style={styles.requestInfo}>
-                <View style={styles.requestNameRow}>
-                  <Text style={styles.requestName}>{invite.groupName}</Text>
-                  <NotificationBadge inline />
+      <View style={styles.tabBar}>
+        {tabs.map((tab) => {
+          const active = tab.value === activeTab;
+          return (
+            <Tappable
+              key={tab.value}
+              onPress={() => setActiveTab(tab.value)}
+              style={[styles.tabButton, active ? styles.tabButtonActive : null]}
+            >
+              <Icon glyph={tab.icon} size={14} color={active ? colors.background : colors.muted} />
+              <Text style={[styles.tabButtonText, active ? styles.tabButtonTextActive : null]}>{tab.label}</Text>
+              {tab.badgeCount > 0 ? <NotificationBadge inline /> : null}
+            </Tappable>
+          );
+        })}
+      </View>
+
+      {activeTab === "grupos" ? (
+        <>
+          {groupInvites.length > 0 ? (
+            <SectionCard
+              title="Invitaciones a grupos"
+              subtitle="Acepta o rechaza invitaciones pendientes"
+              icon="groups"
+              accentColor={colors.sky}
+            >
+              {groupInvites.map((invite) => (
+                <View key={invite.id} style={styles.requestRow}>
+                  <View style={styles.requestInfo}>
+                    <View style={styles.requestNameRow}>
+                      <Text style={styles.requestName}>{invite.groupName}</Text>
+                      <NotificationBadge inline />
+                    </View>
+                    <Text style={styles.requestMeta}>Invitado por {invite.inviterDisplayName}</Text>
+                  </View>
+                  <View style={styles.requestActions}>
+                    <Tappable style={styles.acceptButton} onPress={() => handleAcceptGroupInvite(invite)}>
+                      <Icon glyph="check" size={13} color={colors.background} />
+                      <Text style={styles.acceptButtonText}>Aceptar</Text>
+                    </Tappable>
+                    <Tappable style={styles.rejectButton} onPress={() => handleRejectGroupInvite(invite)}>
+                      <Icon glyph="close" size={13} color={colors.danger} />
+                      <Text style={styles.rejectButtonText}>Rechazar</Text>
+                    </Tappable>
+                  </View>
                 </View>
-                <Text style={styles.requestMeta}>Invitado por {invite.inviterDisplayName}</Text>
-              </View>
-              <View style={styles.requestActions}>
-                <Tappable style={styles.acceptButton} onPress={() => handleAcceptGroupInvite(invite)}>
-                  <Icon glyph="check" size={13} color={colors.background} />
-                  <Text style={styles.acceptButtonText}>Aceptar</Text>
-                </Tappable>
-                <Tappable style={styles.rejectButton} onPress={() => handleRejectGroupInvite(invite)}>
-                  <Icon glyph="close" size={13} color={colors.danger} />
-                  <Text style={styles.rejectButtonText}>Rechazar</Text>
-                </Tappable>
-              </View>
+              ))}
+            </SectionCard>
+          ) : null}
+
+          <SectionCard
+            title="Grupos de predicciones"
+            subtitle="Compite con tus amigos en espacios de grupo"
+            icon="groups"
+            accentColor={colors.sky}
+          >
+            <View style={styles.groupList}>
+              {groups.length > 0 ? (
+                groups.map((group) => (
+                  <GroupCard
+                    key={group.id}
+                    id={group.id}
+                    name={group.name}
+                    memberCount={group.memberCount}
+                    hasUpdate={hasGroupUpdate(group.id)}
+                    onPress={() => router.push(`/groups/${group.id}`)}
+                  />
+                ))
+              ) : (
+                <Text style={styles.emptyText}>Aun no tienes grupos de predicciones.</Text>
+              )}
             </View>
-          ))}
+            <Tappable style={[styles.createGroupButton, { backgroundColor: colors.sky }]} onPress={() => setGroupModalVisible(true)}>
+              <Icon glyph="add" size={16} color={colors.background} />
+              <Text style={styles.createGroupText}>Crear grupo</Text>
+            </Tappable>
+          </SectionCard>
+        </>
+      ) : null}
+
+      {activeTab === "retos" ? (
+        <SectionCard
+          title="Retos"
+          subtitle="Reta a un amigo 1 contra 1 y suma victorias en vuestro historial"
+          icon="challenge"
+          accentColor={colors.pink}
+        >
+          {challengeError ? <Text style={styles.friendErrorText}>{challengeError}</Text> : null}
+
+          {challenges.incoming.length > 0 ? (
+            <View style={styles.requestGroup}>
+              <Text style={styles.requestGroupTitle}>Retos recibidos</Text>
+              {challenges.incoming.map((challenge) => (
+                <ChallengeRow
+                  key={challenge.id}
+                  challenge={challenge}
+                  myAccountId={account?.accountId ?? ""}
+                  onAccept={() => handleAcceptChallenge(challenge.id)}
+                  onDecline={() => handleDeclineChallenge(challenge.id)}
+                />
+              ))}
+            </View>
+          ) : null}
+
+          {challenges.outgoing.length > 0 ? (
+            <View style={styles.requestGroup}>
+              <Text style={styles.requestGroupTitle}>Retos enviados</Text>
+              {challenges.outgoing.map((challenge) => (
+                <ChallengeRow
+                  key={challenge.id}
+                  challenge={challenge}
+                  myAccountId={account?.accountId ?? ""}
+                  onCancel={() => handleCancelChallenge(challenge.id)}
+                />
+              ))}
+            </View>
+          ) : null}
+
+          {challenges.active.length > 0 ? (
+            <View style={styles.requestGroup}>
+              <Text style={styles.requestGroupTitle}>En curso</Text>
+              {challenges.active.map((challenge) => (
+                <ChallengeRow
+                  key={challenge.id}
+                  challenge={challenge}
+                  myAccountId={account?.accountId ?? ""}
+                  onResolve={(result) => handleResolveChallenge(challenge.id, result)}
+                />
+              ))}
+            </View>
+          ) : null}
+
+          {challenges.resolved.length > 0 ? (
+            <View style={styles.requestGroup}>
+              <Text style={styles.requestGroupTitle}>Resueltos</Text>
+              {challenges.resolved.map((challenge) => (
+                <ChallengeRow key={challenge.id} challenge={challenge} myAccountId={account?.accountId ?? ""} />
+              ))}
+            </View>
+          ) : null}
+
+          {challenges.incoming.length === 0 &&
+          challenges.outgoing.length === 0 &&
+          challenges.active.length === 0 &&
+          challenges.resolved.length === 0 ? (
+            <Text style={styles.emptyText}>Aun no tienes retos. Reta a un amigo a una apuesta 1 contra 1.</Text>
+          ) : null}
+
+          <Tappable style={[styles.createGroupButton, { backgroundColor: colors.pink }]} onPress={() => setChallengeModalVisible(true)}>
+            <Icon glyph="add" size={16} color={colors.background} />
+            <Text style={styles.createGroupText}>Nuevo reto</Text>
+          </Tappable>
         </SectionCard>
       ) : null}
 
-      <SectionCard
-        title="Grupos de predicciones"
-        subtitle="Compite con tus amigos en espacios de grupo"
-        icon="groups"
-        accentColor={colors.sky}
-      >
-        <View style={styles.groupList}>
-          {groups.length > 0 ? (
-            groups.map((group) => (
-              <GroupCard
-                key={group.id}
-                id={group.id}
-                name={group.name}
-                memberCount={group.memberCount}
-                hasUpdate={hasGroupUpdate(group.id)}
-                onPress={() => router.push(`/groups/${group.id}`)}
-              />
-            ))
-          ) : (
-            <Text style={styles.emptyText}>Aun no tienes grupos de predicciones.</Text>
-          )}
-        </View>
-        <Tappable style={[styles.createGroupButton, { backgroundColor: colors.sky }]} onPress={() => setGroupModalVisible(true)}>
-          <Icon glyph="add" size={16} color={colors.background} />
-          <Text style={styles.createGroupText}>Crear grupo</Text>
-        </Tappable>
-      </SectionCard>
-
-      <SectionCard
-        title="Retos"
-        subtitle="Reta a un amigo 1 contra 1 y suma victorias en vuestro historial"
-        icon="challenge"
-        accentColor={colors.pink}
-      >
-        {challengeError ? <Text style={styles.friendErrorText}>{challengeError}</Text> : null}
-
-        {challenges.incoming.length > 0 ? (
-          <View style={styles.requestGroup}>
-            <Text style={styles.requestGroupTitle}>Retos recibidos</Text>
-            {challenges.incoming.map((challenge) => (
-              <ChallengeRow
-                key={challenge.id}
-                challenge={challenge}
-                myAccountId={account?.accountId ?? ""}
-                onAccept={() => handleAcceptChallenge(challenge.id)}
-                onDecline={() => handleDeclineChallenge(challenge.id)}
-              />
-            ))}
-          </View>
-        ) : null}
-
-        {challenges.outgoing.length > 0 ? (
-          <View style={styles.requestGroup}>
-            <Text style={styles.requestGroupTitle}>Retos enviados</Text>
-            {challenges.outgoing.map((challenge) => (
-              <ChallengeRow
-                key={challenge.id}
-                challenge={challenge}
-                myAccountId={account?.accountId ?? ""}
-                onCancel={() => handleCancelChallenge(challenge.id)}
-              />
-            ))}
-          </View>
-        ) : null}
-
-        {challenges.active.length > 0 ? (
-          <View style={styles.requestGroup}>
-            <Text style={styles.requestGroupTitle}>En curso</Text>
-            {challenges.active.map((challenge) => (
-              <ChallengeRow
-                key={challenge.id}
-                challenge={challenge}
-                myAccountId={account?.accountId ?? ""}
-                onResolve={(result) => handleResolveChallenge(challenge.id, result)}
-              />
-            ))}
-          </View>
-        ) : null}
-
-        {challenges.resolved.length > 0 ? (
-          <View style={styles.requestGroup}>
-            <Text style={styles.requestGroupTitle}>Resueltos</Text>
-            {challenges.resolved.map((challenge) => (
-              <ChallengeRow key={challenge.id} challenge={challenge} myAccountId={account?.accountId ?? ""} />
-            ))}
-          </View>
-        ) : null}
-
-        {challenges.incoming.length === 0 &&
-        challenges.outgoing.length === 0 &&
-        challenges.active.length === 0 &&
-        challenges.resolved.length === 0 ? (
-          <Text style={styles.emptyText}>Aun no tienes retos. Reta a un amigo a una apuesta 1 contra 1.</Text>
-        ) : null}
-
-        <Tappable style={[styles.createGroupButton, { backgroundColor: colors.pink }]} onPress={() => setChallengeModalVisible(true)}>
-          <Icon glyph="add" size={16} color={colors.background} />
-          <Text style={styles.createGroupText}>Nuevo reto</Text>
-        </Tappable>
-      </SectionCard>
-
-      <SectionCard
-        title="Amigos"
-        subtitle="Busca por identificador de cuenta; el otro usuario debe aceptar tu solicitud"
-        icon="friends"
-        accentColor={colors.teal}
-      >
+      {activeTab === "amigos" ? (
+        <SectionCard
+          title="Amigos"
+          subtitle="Busca por identificador de cuenta; el otro usuario debe aceptar tu solicitud"
+          icon="friends"
+          accentColor={colors.teal}
+        >
         <View style={styles.searchRow}>
           <Icon glyph="social" size={16} color={colors.muted} />
           <TextInput
@@ -555,6 +588,7 @@ export default function SocialScreen() {
           <EmptyFriends />
         )}
       </SectionCard>
+      ) : null}
 
       <CreateGroupModal visible={groupModalVisible} onClose={() => setGroupModalVisible(false)} onCreate={handleCreateGroup} />
       <ChallengeModal
@@ -605,6 +639,35 @@ const styles = StyleSheet.create({
   },
   loadErrorText: {
     color: colors.danger,
+  },
+  tabBar: {
+    flexDirection: "row",
+    gap: spacing.xs,
+  },
+  tabButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    backgroundColor: colors.surfaceSoft,
+    borderRadius: radii.pill,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    paddingVertical: 10,
+  },
+  tabButtonActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+    ...shadows.selected,
+  },
+  tabButtonText: {
+    color: colors.muted,
+    fontWeight: "800",
+    fontSize: 13,
+  },
+  tabButtonTextActive: {
+    color: colors.background,
   },
   groupList: {},
   createGroupButton: {
