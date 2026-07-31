@@ -1,1 +1,2 @@
-# Standard-library only backend for the current local-first phase.
+fastapi
+uvicorn
