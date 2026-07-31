@@ -13,8 +13,8 @@ type Props = {
   children: React.ReactNode;
 };
 
-// Fallback used until the football-data.org-backed competitions load, or if the local API
-// is unreachable. Football-only: no other sport is backed by real data right now.
+// Fallback used until the real (football-data.org / PandaScore backed) competitions load,
+// or if the local API is unreachable.
 const DEFAULT_COMPETITIONS = ["Mundial 2026", "LaLiga", "Champions"];
 
 export function DesktopShell({ children }: Props) {
@@ -25,7 +25,7 @@ export function DesktopShell({ children }: Props) {
   const showThreeCols = width >= 900;
   const activeCompetition = params.competition ?? "Mundial 2026";
 
-  const [footballCompetitionNames, setFootballCompetitionNames] = useState<string[] | null>(null);
+  const [realCompetitionNames, setFootballCompetitionNames] = useState<string[] | null>(null);
   const { triggerTestStreak } = useStreak();
   const { account } = useAuth();
   const elo = account?.profile.elo ?? 0;
@@ -52,7 +52,7 @@ export function DesktopShell({ children }: Props) {
     };
   }, []);
 
-  const competitions = footballCompetitionNames ?? DEFAULT_COMPETITIONS;
+  const competitions = realCompetitionNames ?? DEFAULT_COMPETITIONS;
 
   function isCompetitionActive(label: string) {
     return pathname === "/matches" && activeCompetition === label;

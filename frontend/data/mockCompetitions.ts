@@ -2,15 +2,18 @@ import { requestJson } from "./auth";
 
 export type CompetitionSyncStatus = "never_synced" | "synced" | "stale" | "error";
 
+export type CompetitionProvider = "football-data" | "pandascore";
+
 export type CompetitionSource = {
   code: string;
   externalCode: string;
   displayName: string;
   sport: string;
+  provider: CompetitionProvider;
   syncStatus: CompetitionSyncStatus;
   lastSyncedAt: string | null;
   lastError: string | null;
-  // False while football-data.org has no published fixtures yet and the backend is
+  // False while the external source has no published fixtures yet and the backend is
   // showing generate_mock_matches()'s synthetic pairings instead.
   hasRealFixtures: boolean;
 };
@@ -58,6 +61,7 @@ type RawCompetitionSource = {
   external_code: string;
   display_name: string;
   sport: string;
+  provider: CompetitionProvider;
   sync_status: CompetitionSyncStatus;
   last_synced_at: string | null;
   last_error: string | null;
@@ -99,6 +103,7 @@ function toCompetitionSource(raw: RawCompetitionSource): CompetitionSource {
     externalCode: raw.external_code,
     displayName: raw.display_name,
     sport: raw.sport,
+    provider: raw.provider,
     syncStatus: raw.sync_status,
     lastSyncedAt: raw.last_synced_at,
     lastError: raw.last_error,

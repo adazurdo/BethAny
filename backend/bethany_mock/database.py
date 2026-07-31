@@ -59,6 +59,7 @@ def initialize_database() -> None:
                 external_code TEXT NOT NULL,
                 display_name TEXT NOT NULL,
                 sport TEXT NOT NULL,
+                provider TEXT NOT NULL DEFAULT 'football-data',
                 sync_status TEXT NOT NULL DEFAULT 'never_synced',
                 last_synced_at TEXT,
                 last_error TEXT
@@ -203,6 +204,9 @@ def initialize_database() -> None:
         _ensure_column(connection, "friend_challenges", "challenge_type", "TEXT NOT NULL DEFAULT 'match'")
         _ensure_column(connection, "friend_challenges", "title", "TEXT")
         _ensure_column(connection, "friend_challenges", "options_json", "TEXT NOT NULL DEFAULT '[]'")
+        # `competition_sources` originally only ever synced from football-data.org; PandaScore
+        # (esports) is a second provider added later, so existing rows default to the original one.
+        _ensure_column(connection, "competition_sources", "provider", "TEXT NOT NULL DEFAULT 'football-data'")
         connection.commit()
 
 

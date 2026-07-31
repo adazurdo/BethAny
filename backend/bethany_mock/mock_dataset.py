@@ -89,3 +89,74 @@ def _format_kickoff(utc_date: str) -> str:
     except ValueError:
         return "Fecha por confirmar"
     return dt.strftime("%a %d %b %H:%M")
+
+
+# PandaScore statuses for matches that have not been played yet.
+REMAINING_ESPORTS_MATCH_STATUSES = {"not_started", "postponed"}
+
+
+def normalize_esports_teams(raw_teams: list[dict[str, Any]]) -> list[TeamSnapshot]:
+    teams: list[TeamSnapshot] = []
+    for item in raw_teams:
+        team_id = str(item.get("id", "")).strip()
+        if not team_id:
+            continue
+        name = str(item.get("name") or item.get("acronym") or "Equipo sin nombre")
+        players_payload = item.get("players")
+        squad = (
+            [str(player.get("name")) for player in players_payload if isinstance(player, dict) and player.get("name")]
+            if isinstance(players_payload, list)
+            else []
+        )
+        teams.append(
+            TeamSnapshot(
+                id=team_id,
+                name=name,
+                short_name=str(item.get("acronym") or name),
+                crest_url=str(item.get("image_url") or DEFAULT_CREST),
+                venue=str(item.get("location") or "Online"),
+                squad=squad,
+                standing_position=None,
+            )
+        )
+    return teams
+
+
+def normalize_esports_matches(competition_code: str, raw_matches: list[dict[str, Any]], limit: int = 12) -> list[MockMatch]:
+    """Keep only the real upcoming fixtures PandaScore has scheduled, soonest first.
+
+    Mirrors `normalize_matches` (football-data.org) but reads PandaScore's shape:
+    matches carry an `opponents` list instead of top-level `homeTeam`/`awayTeam`.
+    """
+    remaining = [item for item in raw_matches if str(item.get("status", "")).lower() in REMAINING_ESPORTS_MATCH_STATUSES]
+    remaining.sort(key=lambda item: str(item.get("begin_at") or item.get("scheduled_at") or ""))
+    remaining = remaining[: max(0, limit)]
+
+    matches: list[MockMatch] = []
+    for item in remaining:
+        match_id = item.get("id")
+        if match_id is None:
+            continue
+        opponents = item.get("opponents") or []
+        home = _esports_opponent(opponents, 0)
+        away = _esports_opponent(opponents, 1)
+        matches.append(
+            MockMatch(
+                id=f"esports-match-{match_id}",
+                competition_code=competition_code,
+                home_team_id=str(home.get("id")) if home.get("id") is not None else "",
+                home_team_name=str(home.get("name") or TBD_TEAM_NAME),
+                away_team_id=str(away.get("id")) if away.get("id") is not None else "",
+                away_team_name=str(away.get("name") or TBD_TEAM_NAME),
+                kickoff_label=_format_kickoff(str(item.get("begin_at") or item.get("scheduled_at") or "")),
+                status=str(item.get("status", "scheduled")).lower(),
+            )
+        )
+    return matches
+
+
+def _esports_opponent(opponents: list[dict[str, Any]], index: int) -> dict[str, Any]:
+    if index >= len(opponents) or not isinstance(opponents[index], dict):
+        return {}
+    opponent = opponents[index].get("opponent")
+    return opponent if isinstance(opponent, dict) else {}

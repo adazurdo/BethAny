@@ -5,12 +5,17 @@ from datetime import datetime, timezone
 from .database import dumps, fetch_one, get_connection, initialize_database, loads
 from .models import CompetitionSource, MockDatasetSnapshot, MockMatch, TeamSnapshot
 
-# First version scopes football-data.org sourced mocks to football competitions only;
-# other sports keep their existing static mocks per the feature's Assumptions.
+# Football competitions are sourced from football-data.org; esports ones from PandaScore
+# (external_code holds each provider's own identifier: a football-data.org competition code,
+# or a PandaScore videogame slug). Other sports keep their existing static mocks for now.
 CONFIGURED_COMPETITIONS: list[CompetitionSource] = [
-    CompetitionSource(code="mundial-2026", external_code="WC", display_name="Mundial 2026", sport="Football"),
-    CompetitionSource(code="laliga", external_code="PD", display_name="LaLiga", sport="Football"),
-    CompetitionSource(code="champions", external_code="CL", display_name="Champions", sport="Football"),
+    CompetitionSource(code="mundial-2026", external_code="WC", display_name="Mundial 2026", sport="Football", provider="football-data"),
+    CompetitionSource(code="laliga", external_code="PD", display_name="LaLiga", sport="Football", provider="football-data"),
+    CompetitionSource(code="champions", external_code="CL", display_name="Champions", sport="Football", provider="football-data"),
+    CompetitionSource(code="cs2", external_code="csgo", display_name="Counter-Strike 2", sport="Esports", provider="pandascore"),
+    CompetitionSource(code="lol", external_code="lol", display_name="League of Legends", sport="Esports", provider="pandascore"),
+    CompetitionSource(code="dota2", external_code="dota2", display_name="Dota 2", sport="Esports", provider="pandascore"),
+    CompetitionSource(code="valorant", external_code="valorant", display_name="Valorant", sport="Esports", provider="pandascore"),
 ]
 
 
@@ -24,11 +29,11 @@ def initialize_repository() -> None:
         for source in CONFIGURED_COMPETITIONS:
             connection.execute(
                 """
-                INSERT INTO competition_sources (code, external_code, display_name, sport, sync_status)
-                VALUES (?, ?, ?, ?, 'never_synced')
+                INSERT INTO competition_sources (code, external_code, display_name, sport, provider, sync_status)
+                VALUES (?, ?, ?, ?, ?, 'never_synced')
                 ON CONFLICT(code) DO NOTHING
                 """,
-                (source.code, source.external_code, source.display_name, source.sport),
+                (source.code, source.external_code, source.display_name, source.sport, source.provider),
             )
         connection.commit()
 
@@ -39,6 +44,7 @@ def _row_to_source(row) -> CompetitionSource:
         external_code=row["external_code"],
         display_name=row["display_name"],
         sport=row["sport"],
+        provider=row["provider"],
         sync_status=row["sync_status"],
         last_synced_at=row["last_synced_at"],
         last_error=row["last_error"],

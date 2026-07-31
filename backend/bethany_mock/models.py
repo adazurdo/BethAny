@@ -288,6 +288,9 @@ class CompetitionSource:
     external_code: str
     display_name: str
     sport: str
+    # Which external client `mock_dataset_service.sync_competition` should call: "football-data"
+    # (football-data.org, competitions/leagues) or "pandascore" (esports, videogame slugs).
+    provider: str = "football-data"
     sync_status: str = "never_synced"
     last_synced_at: str | None = None
     last_error: str | None = None

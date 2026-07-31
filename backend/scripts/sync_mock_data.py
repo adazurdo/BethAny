@@ -11,7 +11,9 @@ from bethany_mock import CONFIGURED_COMPETITIONS, initialize_mock_dataset_reposi
 
 def main() -> None:
     if not os.getenv("FOOTBALL_DATA_API_TOKEN"):
-        print("FOOTBALL_DATA_API_TOKEN no esta configurado; los sync fallaran y se conservara el ultimo snapshot local.")
+        print("FOOTBALL_DATA_API_TOKEN no esta configurado; los sync de futbol fallaran y se conservara el ultimo snapshot local.")
+    if not os.getenv("PANDASCORE_API_KEY"):
+        print("PANDASCORE_API_KEY no esta configurado; los sync de esports fallaran y se conservara el ultimo snapshot local.")
 
     initialize_mock_dataset_repository()
     for source in CONFIGURED_COMPETITIONS:

@@ -4,11 +4,11 @@ import hashlib
 import random
 from dataclasses import dataclass
 
-# The two football-data.org statuses that mean "not yet played" — the same
-# boundary `mock_dataset.py: REMAINING_MATCH_STATUSES` uses to decide whether a
-# fixture is still upcoming, reused here so "can I bet on it" never diverges
-# from "is it still listed as upcoming".
-OPEN_FOR_BETTING_STATUSES = {"scheduled", "timed"}
+# The football-data.org ("scheduled", "timed") and PandaScore ("not_started") statuses
+# that mean "not yet played" — the same boundary `mock_dataset.py`'s REMAINING_*_STATUSES
+# sets use to decide whether a fixture is still upcoming, reused here so "can I bet on it"
+# never diverges from "is it still listed as upcoming".
+OPEN_FOR_BETTING_STATUSES = {"scheduled", "timed", "not_started"}
 
 
 @dataclass

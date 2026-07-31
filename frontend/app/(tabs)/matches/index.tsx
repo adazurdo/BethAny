@@ -20,7 +20,7 @@ export default function MatchesByCompetitionScreen() {
   const params = useLocalSearchParams<{ competition?: string }>();
   const competition = params.competition ?? "Mundial 2026";
 
-  // Only football competitions backed by football-data.org are supported now.
+  // Backed by football-data.org (football) or PandaScore (esports) depending on source.provider.
   const [source, setSource] = useState<CompetitionSource | null>(null);
   const [teams, setTeams] = useState<MockTeam[] | null>(null);
   const [matches, setMatches] = useState<MockCompetitionMatch[] | null>(null);
@@ -115,7 +115,8 @@ export default function MatchesByCompetitionScreen() {
         <View style={styles.staleBanner}>
           <Icon glyph="info" size={16} color={colors.warning} />
           <Text style={styles.staleText}>
-            No se pudo actualizar desde football-data.org{source?.lastError ? `: ${source.lastError}` : "."} Mostrando el ultimo dataset valido.
+            No se pudo actualizar desde {source?.provider === "pandascore" ? "PandaScore" : "football-data.org"}
+            {source?.lastError ? `: ${source.lastError}` : "."} Mostrando el ultimo dataset valido.
           </Text>
         </View>
       ) : null}
@@ -141,7 +142,7 @@ export default function MatchesByCompetitionScreen() {
               <EventCard
                 key={match.id}
                 title={`${match.homeTeamName} vs ${match.awayTeamName}`}
-                sport="Football"
+                sport={source?.sport ?? "Football"}
                 league={competition}
                 startLabel={match.kickoffLabel}
                 featured={false}
@@ -159,7 +160,9 @@ export default function MatchesByCompetitionScreen() {
           ) : (
             <View style={styles.emptyState}>
               <Text style={styles.emptyTitle}>No hay partidos disponibles en esta competencia</Text>
-              <Text style={styles.emptyText}>football-data.org todavia no tiene partidos publicados para esta competencia. Prueba a sincronizar mas tarde.</Text>
+              <Text style={styles.emptyText}>
+                {source?.provider === "pandascore" ? "PandaScore" : "football-data.org"} todavia no tiene partidos publicados para esta competencia. Prueba a sincronizar mas tarde.
+              </Text>
               <Tappable onPress={handleSync} disabled={syncing} style={[styles.syncButton, syncing ? styles.syncButtonPressed : null]}>
                 <Icon glyph="matches" size={13} color={colors.background} />
                 <Text style={styles.syncButtonText}>{syncing ? "Sincronizando..." : "Sincronizar ahora"}</Text>

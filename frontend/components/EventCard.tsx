@@ -46,7 +46,9 @@ export function EventCard({ title, sport, league, startLabel, featured, homeTeam
   const { addSelection, isSelected } = useBetSlip();
 
   const scale = new Animated.Value(1);
-  const isOpenForBetting = match.status.toLowerCase() === "scheduled" || match.status.toLowerCase() === "timed";
+  // Mirrors backend/bethany_mock/odds.py's OPEN_FOR_BETTING_STATUSES: football-data.org's
+  // "scheduled"/"timed" and PandaScore's "not_started" all mean "not yet played".
+  const isOpenForBetting = ["scheduled", "timed", "not_started"].includes(match.status.toLowerCase());
 
   // "Flies" a small copy of the tapped odd up and away, toward where the
   // boleto lives (the desktop right rail, or the mobile "Ver boleto" access
