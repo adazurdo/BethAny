@@ -26,11 +26,11 @@ Con el saldo restante de la cuenta anterior, intenta colocar una apuesta con un 
 
 **Expected result**: Ambas colocaciones se rechazan (`400`, `"insufficient beths balance"` o `"stake cannot exceed 1000 beths"` respectivamente) y el saldo no cambia en ninguno de los dos casos.
 
-### 3. La apuesta se liquida sola pasado el tiempo configurado, y mueve el ELO
+### 3. La apuesta se liquida sola una vez el partido tiene un resultado real, y mueve el ELO
 
-Deja pasar (o ajusta manualmente `created_at` en `placed_bets` para simular el paso del tiempo) más de 90 minutos desde que se colocó la apuesta del paso 1. Anota `profile.elo` antes de abrir "Mis apuestas" (`GET /bets/mine`), luego vuelve a consultar `GET /account/me`.
+*(Revisado 2026-07-31: ya no basta con esperar 90 minutos — la apuesta debe además apostar sobre un partido cuya fuente real (football-data.org/PandaScore) ya lo reporte como terminado; ver `research.md`, Revisión 2026-07-31.)* Coloca la apuesta del paso 1 sobre un partido real ya finalizado en su fuente (o ajusta manualmente `created_at`/el `kickoff_at` sincronizado para que el throttle de 90 minutos no bloquee la comprobación). Anota `profile.elo` antes de abrir "Mis apuestas" (`GET /bets/mine`), luego vuelve a consultar `GET /account/me`.
 
-**Expected result**: La apuesta ya no aparece como `"realizada"`; pasó a `"ganada"` (con el saldo de Beths aumentado en `potentialWinnings`) o a `"perdida"` (saldo sin cambios adicionales), según el resultado simulado determinista de ese `matchId`. El ELO subió si ganó, bajó si perdió — más cuanto más alta era la cuota apostada y cuantos más Beths se arriesgaron (dentro de los rendimientos decrecientes, ver Decision 2-bis). Repetir la consulta más tarde da siempre el mismo resultado para esa apuesta (no vuelve a re-liquidarse ni a mover el ELO otra vez).
+**Expected result**: La apuesta ya no aparece como `"realizada"`; pasó a `"ganada"` (con el saldo de Beths aumentado en `potentialWinnings`) o a `"perdida"` (saldo sin cambios adicionales), según el resultado real de ese `matchId` en su fuente. La apuesta liquidada también trae `eloDelta` (el cambio de ELO exacto que aplicó, visible en "Mis apuestas"). El ELO subió si ganó, bajó si perdió — más cuanto más alta era la cuota apostada y cuantos más Beths se arriesgaron (dentro de los rendimientos decrecientes, ver Decision 2-bis). Repetir la consulta más tarde da siempre el mismo resultado para esa apuesta (no vuelve a re-liquidarse ni a mover el ELO otra vez). Si el partido elegido todavía no tiene resultado confirmado en su fuente, la apuesta permanece `"realizada"` indefinidamente — es el comportamiento esperado, no un fallo.
 
 ### 4. El ELO nunca baja del suelo mínimo
 
@@ -48,7 +48,7 @@ Coloca y liquida (ajustando `created_at` como en el paso 3) más de 5 apuestas d
 
 Coloca una apuesta combinada con dos selecciones de partidos distintos y espera a que ambos partidos sean liquidables.
 
-**Expected result**: Si el resultado simulado de ambos partidos coincide con lo apostado, la combinada pasa a `"ganada"` y se acredita `potentialWinnings` (y el ELO sube según la cuota combinada); si falla cualquiera de las dos, pasa a `"perdida"` sin acreditar nada (y el ELO baja).
+**Expected result**: Si el resultado real de ambos partidos coincide con lo apostado, la combinada pasa a `"ganada"` y se acredita `potentialWinnings` (y el ELO sube según la cuota combinada); si falla cualquiera de las dos, pasa a `"perdida"` sin acreditar nada (y el ELO baja). Si el resultado real de cualquiera de los dos partidos aún no está confirmado en su fuente, la combinada entera permanece `"realizada"` hasta que ambos lo estén.
 
 ### 7. La renta llega aunque el saldo esté a cero, y acumula periodos vencidos
 

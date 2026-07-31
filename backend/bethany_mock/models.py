@@ -179,6 +179,10 @@ class PlacedBet:
     selections: list[PlacedBetSelection] = field(default_factory=list)
     status: str = "realizada"
     settled_at: str | None = None
+    # The exact Elo change this bet applied to the account when it settled (None while
+    # pending, and also None once settled if the account's daily Elo-counted cap was already
+    # spent — the Beths payout still applies either way, see bet_repository).
+    elo_delta: int | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

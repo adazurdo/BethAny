@@ -85,7 +85,7 @@ Sin cambios de request/response en el caso de éxito. Nuevos casos de error:
 
 ### `GET /bets/mine` *(existente, respuesta ampliada + efecto de liquidación)*
 
-Antes de responder, liquida cualquier apuesta de la cuenta en estado `realizada` cuyo tiempo de liquidación ya haya pasado — y con ella, recalcula el ELO de la cuenta según la cuota y el stake de esa apuesta (siempre que no se haya alcanzado ya el tope diario de apuestas que cuentan para ELO) y concede cualquier recompensa de hito cruzada. Cada `PlacedBet` en la respuesta gana `settledAt` y `status` puede valer ahora `"realizada" | "ganada" | "perdida"`:
+Antes de responder, liquida cualquier apuesta de la cuenta en estado `realizada` cuyo partido ya sea suficientemente antiguo **y** cuyo resultado real ya esté confirmado por su fuente (football-data.org/PandaScore — revisión 2026-07-31, ver `research.md`; antes de esa revisión bastaba con que hubiera pasado el tiempo configurado) — y con ella, recalcula el ELO de la cuenta según la cuota y el stake de esa apuesta (siempre que no se haya alcanzado ya el tope diario de apuestas que cuentan para ELO) y concede cualquier recompensa de hito cruzada. Cada `PlacedBet` en la respuesta gana `settledAt` y `eloDelta` (2026-07-31: el cambio de Elo exacto que esa apuesta aplicó, `null` mientras está pendiente o si no tuvo efecto por el tope diario), y `status` puede valer ahora `"realizada" | "ganada" | "perdida"`:
 
 ```json
 {
@@ -99,14 +99,17 @@ Antes de responder, liquida cualquier apuesta de la cuenta en estado `realizada`
       "status": "ganada",
       "createdAt": "2026-07-17T09:00:00+00:00",
       "settledAt": "2026-07-17T10:30:00+00:00",
+      "eloDelta": 12,
       "selections": [
-        { "matchId": "match-12345", "matchLabel": "Francia vs Inglaterra", "outcome": "local", "odds": 2.05 },
-        { "matchId": "match-67890", "matchLabel": "Brasil vs Argentina", "outcome": "visitante", "odds": 3.40 }
+        { "matchId": "match-12345", "matchLabel": "Francia vs Inglaterra", "outcome": "local", "odds": 2.05, "result": "local", "won": true, "matchStatus": null },
+        { "matchId": "match-67890", "matchLabel": "Brasil vs Argentina", "outcome": "visitante", "odds": 3.40, "result": "visitante", "won": true, "matchStatus": null }
       ]
     }
   ]
 }
 ```
+
+Una apuesta cuyo partido ya pasó el tiempo configurado pero cuya fuente todavía no reporta un resultado final (partido pospuesto, fuente caída, token no configurado) permanece con `status: "realizada"`, `settledAt: null` y `eloDelta: null` — no se liquida hasta que el resultado real esté disponible.
 
 ## Error Summary
 

@@ -44,9 +44,10 @@ def can_draw(match_id: str) -> bool:
 def match_probabilities(match_id: str) -> tuple[float, float, float]:
     """Derive stable (home, draw, away) win probabilities purely from `match_id`.
 
-    Shared by `generate_match_odds` (below) and `match_results.generate_match_result`,
-    so the simulated result of a match is always consistent with the favorite implied
-    by its own odds (see `specs/006-elo/research.md` Decision 8).
+    Used by `generate_match_odds` (below) to derive its 1X2 market. Bet settlement no
+    longer simulates a result from these probabilities - see `match_results.resolve_match_result`,
+    which checks the real result from the match's own provider instead
+    (see `specs/006-elo/research.md` Decision 8, superseded).
     """
     rng = random.Random(seed_for(match_id))
 

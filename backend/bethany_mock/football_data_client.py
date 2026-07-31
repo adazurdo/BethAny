@@ -60,3 +60,11 @@ def fetch_competition_matches(external_code: str) -> list[dict[str, Any]]:
     payload = _request(f"/competitions/{external_code}/matches")
     matches = payload.get("matches")
     return matches if isinstance(matches, list) else []
+
+
+def fetch_match(match_id: str) -> dict[str, Any]:
+    """A single match by its football-data.org numeric id, including `status` and, once
+    played, `score.winner` (HOME_TEAM/AWAY_TEAM/DRAW) - used to settle bets against the
+    real result instead of `competitions/{code}/matches`, which only lists upcoming
+    fixtures and drops a match once it's actually been played."""
+    return _request(f"/matches/{match_id}")

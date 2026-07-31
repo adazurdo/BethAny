@@ -60,3 +60,11 @@ def fetch_running_matches(videogame_slug: str, per_page: int = 25) -> list[dict[
 def fetch_teams(videogame_slug: str, per_page: int = 100) -> list[dict[str, Any]]:
     payload = _request(f"/{videogame_slug}/teams", {"per_page": per_page})
     return payload if isinstance(payload, list) else []
+
+
+def fetch_match(match_id: str) -> dict[str, Any]:
+    """A single match by its PandaScore numeric id, including `status` and, once finished,
+    `winner_id` - used to settle bets against the real result instead of `/matches/upcoming`
+    or `/matches/running`, neither of which carries a finished match."""
+    payload = _request(f"/matches/{match_id}")
+    return payload if isinstance(payload, dict) else {}

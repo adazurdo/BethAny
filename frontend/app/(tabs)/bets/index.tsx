@@ -148,9 +148,16 @@ export default function MyBetsScreen() {
               </Text>
             </View>
           </View>
-          <Text style={styles.createdAt}>
-            {bet.settledAt ? `Liquidada ${formatDate(bet.settledAt)}` : formatDate(bet.createdAt)}
-          </Text>
+          <View style={styles.createdAtRow}>
+            <Text style={styles.createdAt}>
+              {bet.settledAt ? `Liquidada ${formatDate(bet.settledAt)}` : formatDate(bet.createdAt)}
+            </Text>
+            {bet.eloDelta !== null ? (
+              <Text style={[styles.eloDelta, { color: bet.eloDelta >= 0 ? colors.primary : colors.danger }]}>
+                {bet.eloDelta >= 0 ? `+${bet.eloDelta}` : bet.eloDelta} Elo
+              </Text>
+            ) : null}
+          </View>
 
           {bet.selections.map((selection) => (
             <View key={`${bet.id}-${selection.matchId}`} style={styles.selectionRow}>
@@ -291,10 +298,19 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.sm,
     fontWeight: "800",
   },
+  createdAtRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 4,
+  },
   createdAt: {
     color: colors.muted,
     fontSize: fontSizes.xs,
-    marginBottom: 4,
+  },
+  eloDelta: {
+    fontSize: fontSizes.xs,
+    fontWeight: "900",
   },
   selectionRow: {
     flexDirection: "row",

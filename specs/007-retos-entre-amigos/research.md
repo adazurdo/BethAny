@@ -8,9 +8,11 @@
 
 Ya establecido explícitamente en el spec (Clarifications): un reto no tiene una "dificultad" de mercado objetiva (no hay libro de apuestas real detrás de un 1v1 entre amigos), así que no hay ningún `implied_probability` razonable que darle a `elo.update_elo_from_bet`. Se sigue el mismo precedente que las predicciones de grupo (006-elo FR-003): mueven Beths, no Elo.
 
-## Decision 3 — Reutilizar la simulación de resultados y la ventana de liquidación de 006-elo
+## Decision 3 — Reutilizar la resolución de resultados y la ventana de liquidación de 006-elo
 
-`match_results.generate_match_result(match_id)` y la constante `SETTLEMENT_DELAY_MINUTES = 90` (hoy en `bet_repository.py`) ya resuelven exactamente el problema de "¿cuándo se considera terminado un partido mock y cuál fue su resultado?". Un reto usa las mismas dos piezas sin cambios, así que su resultado y el de una apuesta de partido sobre el mismo `match_id` siempre coinciden — no puede haber dos "verdades" distintas sobre quién ganó un partido mock. `SETTLEMENT_DELAY_MINUTES` se importa desde `bet_repository` en vez de duplicarse.
+`match_results.resolve_match_result(match_id)` y la constante `SETTLEMENT_DELAY_MINUTES = 90` (hoy en `bet_repository.py`) ya resuelven exactamente el problema de "¿cuándo se considera terminado un partido y cuál fue su resultado?". Un reto usa las mismas dos piezas sin cambios, así que su resultado y el de una apuesta de partido sobre el mismo `match_id` siempre coinciden — no puede haber dos "verdades" distintas sobre quién ganó un partido. `SETTLEMENT_DELAY_MINUTES` se importa desde `bet_repository` en vez de duplicarse.
+
+> **Actualizado 2026-07-31**: `match_results.generate_match_result` (simulación determinista) ya no existe; se reutiliza en su lugar `resolve_match_result(match_id) -> str | None`, que consulta el resultado real del partido en su fuente (football-data.org/PandaScore) y devuelve `None` mientras no esté confirmado (ver `006-elo/research.md`, Revisión 2026-07-31). `challenge_repository._settle_due_challenges` ahora, igual que `bet_repository._settle_due_bets`, solo liquida un reto de partido cuando `resolve_match_result` devuelve un resultado no nulo — si el partido pasó `SETTLEMENT_DELAY_MINUTES` pero la fuente todavía no lo reporta como terminado, el reto permanece `"accepted"` en vez de liquidarse contra una adivinanza. Esto no cambia nada del resto de esta Decision: sigue sin haber Elo ni Beths en juego (Decision 2), y el reto y la apuesta de partido sobre el mismo `match_id` siguen sin poder discrepar sobre el resultado.
 
 ## Decision 4 — Liquidación perezosa, sin scheduler, calcada de `_settle_due_bets`
 

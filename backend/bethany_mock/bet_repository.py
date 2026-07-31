@@ -7,7 +7,7 @@ from typing import Any
 from . import elo
 from .account_repository import get_account_by_id, save_account_state
 from .database import dumps, get_connection, initialize_database, loads
-from .match_results import generate_match_result
+from .match_results import resolve_match_result
 from .mock_dataset_repository import find_match_by_id
 from .models import MockMatch, PlacedBet, PlacedBetSelection
 from .odds import can_draw, generate_match_odds, is_open_for_betting
@@ -64,25 +64,31 @@ def _credit_beths(account_id: str, amount: float) -> None:
     save_account_state(account)
 
 
-def _apply_elo_for_settlement(account_id: str, combined_odds: float, stake: float, won: bool) -> None:
+def _apply_elo_for_settlement(account_id: str, combined_odds: float, stake: float, won: bool) -> int | None:
     """Move `account_id`'s Elo from one settled bet's outcome (cuota=difficulty,
     stake=confidence, won=result), unless today's daily Elo-counted cap is already
     spent (see specs/006-elo/research.md Decision 2-bis) — the bet's Beths payout still
     applies either way, only the Elo effect is capped.
+
+    Returns the exact Elo change applied to the account (new_elo - old_elo, after the floor
+    clamp and rounding already inside `elo.update_elo_from_bet`), or `None` if the daily cap
+    meant no Elo effect happened at all - the caller persists this on the bet itself so a
+    player can see how much Elo each individual bet won or lost.
     """
     account = get_account_by_id(account_id)
     if account is None:
-        return
+        return None
     profile = account.profile
     today = datetime.now(timezone.utc).date().isoformat()
     if profile.elo_bets_counted_date != today:
         profile.elo_bets_counted_date = today
         profile.elo_bets_counted_today = 0
     if profile.elo_bets_counted_today >= elo.DAILY_ELO_COUNTED_BETS:
-        return
+        return None
 
     capped_stake = min(stake, elo.MAX_ELO_STAKE)
     result = 1.0 if won else 0.0
+    old_elo = profile.elo
     new_elo, _delta = elo.update_elo_from_bet(profile.elo, combined_odds, result, profile.elo_bets_settled, capped_stake)
 
     if profile.highest_elo_milestone < 0:
@@ -101,6 +107,7 @@ def _apply_elo_for_settlement(account_id: str, combined_odds: float, stake: floa
     profile.highest_elo_milestone = max(profile.highest_elo_milestone, new_tier)
 
     save_account_state(account)
+    return new_elo - old_elo
 
 
 def _new_id(prefix: str) -> str:
@@ -154,10 +161,10 @@ def _resolve_selection(raw: dict[str, Any]) -> tuple[MockMatch, str, float, str]
 
 
 def _serialize_selection(selection: PlacedBetSelection, *, settled: bool) -> dict[str, Any]:
-    # The simulated result only becomes visible once the bet itself is settled — showing
-    # it earlier would leak an outcome that, in-fiction, "hasn't happened yet" even though
-    # `generate_match_result` is a pure deterministic function under the hood.
-    result = generate_match_result(selection.match_id) if settled else None
+    # The real result only becomes visible once the bet itself is settled - settlement itself
+    # only happens once `resolve_match_result` has one, so this is just re-reading (from cache)
+    # what `_settle_due_bets` already resolved, never fetching ahead of the match finishing.
+    result = resolve_match_result(selection.match_id) if settled else None
     # Only meaningful while pending: once settled the match is done, whatever its last-synced
     # status says. `None` when the match already dropped out of its competition's snapshot.
     match_status = None
@@ -188,6 +195,7 @@ def serialize_placed_bet(bet: PlacedBet) -> dict[str, Any]:
         "status": bet.status,
         "createdAt": bet.created_at,
         "settledAt": bet.settled_at,
+        "eloDelta": bet.elo_delta,
         "selections": [_serialize_selection(selection, settled=settled) for selection in bet.selections],
     }
 
@@ -287,16 +295,20 @@ def place_bet(
 
 
 def _settle_due_bets(account_id: str) -> None:
-    """Lazily settle every pending bet of this account whose match(es) are old enough to be
-    considered finished, against a deterministic simulated result — no real match result exists
-    anywhere in this prototype (see `specs/006-elo/research.md` Decisions 8 and 9).
+    """Lazily settle every pending bet of this account whose match(es) are both old enough to
+    plausibly be finished and, per `resolve_match_result`, actually confirmed finished by the
+    real provider (football-data.org or PandaScore) - a bet whose match the provider hasn't
+    reported as finished yet (postponed, still in play, or simply not checked into a final
+    result) stays pending rather than settling against a guess.
 
     "Old enough" is measured from each selection's real scheduled kickoff (`MockMatch.kickoff_at`)
     plus `SETTLEMENT_DELAY_MINUTES`, not from when the bet was *placed* - a bet placed at 13:00 on
-    a match kicking off at 17:15 must not settle at 14:30, no matter how long ago it was placed.
-    Falls back to `created_at` only when the match's real kickoff is unknown (source didn't
-    provide one, or the match already dropped out of its competition's snapshot because it was
-    actually played) - a strictly weaker guarantee, but the best available without that data.
+    a match kicking off at 17:15 must not even be checked at 14:30, no matter how long ago it was
+    placed. Falls back to `created_at` only when the match's real kickoff is unknown (source
+    didn't provide one, or the match already dropped out of its competition's snapshot because
+    it was actually played) - a strictly weaker guarantee, but the best available without that
+    data. This is only a throttle on when to start asking the provider; the actual settlement
+    decision always waits for its confirmed real result.
     """
     now = datetime.now(timezone.utc)
     with get_connection() as connection:
@@ -313,20 +325,24 @@ def _settle_due_bets(account_id: str) -> None:
         if now < reference + timedelta(minutes=SETTLEMENT_DELAY_MINUTES):
             continue
 
-        won = all(generate_match_result(selection["match_id"]) == selection["outcome"] for selection in selections)
+        results = [resolve_match_result(selection["match_id"]) for selection in selections]
+        if any(result is None for result in results):
+            continue  # at least one match's real result isn't confirmed yet - stays pending
+
+        won = all(result == selection["outcome"] for result, selection in zip(results, selections))
         settled_at = now.isoformat()
         new_status = "ganada" if won else "perdida"
 
-        with get_connection() as connection:
-            connection.execute(
-                "UPDATE placed_bets SET status = ?, settled_at = ? WHERE id = ?",
-                (new_status, settled_at, row["id"]),
-            )
-            connection.commit()
-
         if won:
             _credit_beths(account_id, row["potential_winnings"])
-        _apply_elo_for_settlement(account_id, row["combined_odds"], row["stake"], won)
+        elo_delta = _apply_elo_for_settlement(account_id, row["combined_odds"], row["stake"], won)
+
+        with get_connection() as connection:
+            connection.execute(
+                "UPDATE placed_bets SET status = ?, settled_at = ?, elo_delta = ? WHERE id = ?",
+                (new_status, settled_at, elo_delta, row["id"]),
+            )
+            connection.commit()
 
 
 def list_placed_bets(account_id: str) -> list[dict[str, Any]]:
@@ -352,6 +368,7 @@ def list_placed_bets(account_id: str) -> list[dict[str, Any]]:
             selections=selections,
             status=row["status"],
             settled_at=row["settled_at"],
+            elo_delta=row["elo_delta"],
         )
         bets.append(serialize_placed_bet(bet))
     return bets

@@ -23,6 +23,10 @@ export type PlacedBet = {
   status: string;
   createdAt: string;
   settledAt: string | null;
+  // The exact Elo change this bet applied to the account once settled - null while pending,
+  // and also null once settled if the account's daily Elo-counted cap was already spent that
+  // day (the bet still won/lost Beths normally, it just didn't move Elo).
+  eloDelta: number | null;
   selections: PlacedBetSelection[];
 };
 

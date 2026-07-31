@@ -2,7 +2,7 @@
 
 ## Overview
 
-Esta feature amplía el `AccountProfile` ya existente con un saldo de Beths (moneda renombrada desde "coins" el 2026-07-17) y los contadores necesarios para el ELO dinámico y los hitos, sin crear una entidad "Wallet" separada (Decision 1, `research.md`). Añade una entidad nueva de solo-auditoría (`EloMilestoneAward`) y una liquidación real sobre el `PlacedBet` ya existente de `005-combinada`, apoyada en un resultado de partido simulado que no se persiste (igual patrón que `MatchOdds`). **Revisión 2026-07-17**: el ELO ya no depende de las predicciones de grupo — se recalcula únicamente al liquidar una apuesta (ver `EloUpdate` más abajo y `research.md` Decision 2-bis).
+Esta feature amplía el `AccountProfile` ya existente con un saldo de Beths (moneda renombrada desde "coins" el 2026-07-17) y los contadores necesarios para el ELO dinámico y los hitos, sin crear una entidad "Wallet" separada (Decision 1, `research.md`). Añade una entidad nueva de solo-auditoría (`EloMilestoneAward`) y una liquidación real sobre el `PlacedBet` ya existente de `005-combinada`. **Revisión 2026-07-17**: el ELO ya no depende de las predicciones de grupo — se recalcula únicamente al liquidar una apuesta (ver `EloUpdate` más abajo y `research.md` Decision 2-bis). **Revisión 2026-07-31**: la liquidación pasa de un resultado de partido simulado y no persistido a un resultado real consultado en la fuente y cacheado (ver `MatchResult` más abajo y `research.md`), y cada `PlacedBet` guarda el Elo exacto que ganó o perdió (`elo_delta`).
 
 ## Entities
 
@@ -60,30 +60,32 @@ Registro de auditoría de cada recompensa de Beths concedida por cruzar un hito 
 - "Visto/no visto" no es un campo propio de esta tabla: se deriva comparando contra `notification_seen` con `mark_key = f"elo_milestone:{tier}"` para esa `account_id` (Decision 6) — una fila sin marca de vista correspondiente es una recompensa pendiente de mostrar.
 - Es puramente aditiva/histórica; nunca se actualiza ni se borra una fila ya insertada.
 
-### MatchResult *(derivado, no persistido)*
+### MatchResult *(real, cacheado tras la Revisión 2026-07-31 — ver `research.md`)*
 
-El resultado simulado de un partido, análogo a `MatchOdds` (`005-combinada`).
+El resultado real de un partido, consultado directamente en su propia fuente (football-data.org o PandaScore).
 
 **Campos**:
 - `match_id`
 - `outcome: "local" | "empate" | "visitante"`
 
-**Reglas**:
-- Determinista a partir de `match_id`, ponderado por las mismas probabilidades usadas para generar sus cuotas (Decision 8); el mismo `match_id` siempre produce el mismo resultado.
-- No se almacena en ninguna tabla ni columna; se recalcula cada vez que se liquida una apuesta sobre ese partido, igual que las cuotas se recalculan en cada lectura.
+**Reglas (revisadas 2026-07-31)**:
+- `match_results.resolve_match_result(match_id)` consulta `GET /matches/{id}` de la fuente correspondiente (football-data.org para `"match-{id}"`, PandaScore para `"esports-match-{id}"`) y deriva el resultado del campo real de la fuente (`score.winner` o `winner_id` contra `opponents[0]`). Devuelve `None` mientras la fuente no marque el partido como terminado, o si la consulta falla (token no configurado, red, límite de tasa) — nunca se inventa un resultado.
+- Una vez resuelto (no `None`), se persiste en la tabla nueva `match_results` (`match_id` PK, `outcome`, `resolved_at`) y no se vuelve a consultar la fuente para ese `match_id` — un resultado final no cambia, a diferencia de las cuotas (`MatchOdds`, que siguen siendo puramente derivadas y sin persistir).
+- Sustituye por completo al resultado simulado determinista de la Decision 8 original (`research.md`), que ya no existe en el código.
 
 ### PlacedBet *(existente de `005-combinada`, ampliado)*
 
-**Campo nuevo**:
+**Campos nuevos**:
 - `settled_at: str | None` — timestamp ISO 8601 de cuándo se liquidó; `None` mientras está pendiente.
+- `elo_delta: int | None` *(Revisión 2026-07-31)* — el cambio de Elo exacto que esta apuesta aplicó a la cuenta al liquidarse (`new_elo - old_elo`, tras el suelo y el redondeo de `elo.update_elo_from_bet`); `None` mientras está pendiente, y también `None` una vez liquidada si en ese momento ya se había alcanzado el tope diario de apuestas que cuentan para Elo (Decision de anti-abuso) — la apuesta se liquida y paga Beths igual, solo sin efecto en Elo. Expuesto como `eloDelta` en `GET /bets/mine` (ver Decision 13, `research.md`).
 
 **Cambio de significado del campo existente `status`**:
 - `"realizada"` — pendiente de liquidar (estado inicial, sin cambios respecto a `005-combinada`).
-- `"ganada"` — liquidada, el resultado simulado coincidió con la selección (o con todas las selecciones, si es combinada); `potential_winnings` ya se acreditó al saldo de Beths de la cuenta.
-- `"perdida"` — liquidada, el resultado simulado no coincidió; no se acredita nada (el `stake` ya se había debitado al colocarla).
+- `"ganada"` — liquidada, el resultado real (`MatchResult`) coincidió con la selección (o con todas las selecciones, si es combinada); `potential_winnings` ya se acreditó al saldo de Beths de la cuenta.
+- `"perdida"` — liquidada, el resultado real no coincidió; no se acredita nada (el `stake` ya se había debitado al colocarla).
 
 **Reglas nuevas**:
-- Una apuesta pasa de `"realizada"` a `"ganada"`/`"perdida"` exactamente una vez, cuando `now >= created_at + SETTLEMENT_DELAY_MINUTES` (Decision 9), evaluado de forma perezosa al listar las apuestas de una cuenta.
+- Una apuesta pasa de `"realizada"` a `"ganada"`/`"perdida"` exactamente una vez, cuando `now >= created_at + SETTLEMENT_DELAY_MINUTES` **y**, para cada una de sus `selections`, `MatchResult` ya tiene un resultado real confirmado (Decision 9, revisada 2026-07-31) — si falta el resultado de cualquier selección, la apuesta permanece `"realizada"` y se reintenta en la siguiente lectura. Evaluado de forma perezosa al listar las apuestas de una cuenta.
 - Una `combinada` es `"ganada"` solo si el `MatchResult` de **todas** sus `selections` coincide con su `outcome` (Decision 10); si cualquiera falla, es `"perdida"` en bloque.
 - El `stake` ya se debitó del saldo de Beths al colocar la apuesta (ver "Colocar una apuesta" más abajo); la liquidación solo puede sumar (`"ganada"`) o no hacer nada más (`"perdida"`), nunca vuelve a restar.
 
@@ -99,7 +101,7 @@ El resultado simulado de un partido, análogo a `MatchOdds` (`005-combinada`).
 AccountProfile (1) ──── (N) EloMilestoneAward
 AccountProfile (1) ──── (N) PlacedBet
 PlacedBet ──liquida──▶ EloUpdate (aplicado a AccountProfile.elo, dentro del tope diario)
-PlacedBet (1) ──── (N) PlacedBetSelection ──liquida contra──▶ MatchResult (derivado de match_id)
+PlacedBet (1) ──── (N) PlacedBetSelection ──liquida contra──▶ MatchResult (real, consultado y cacheado por match_id)
 CustomPrediction (1) ──── (N) PredictionVote ──resuelve──▶ ranking de grupo por aciertos (sin relación con AccountProfile.elo)
 ```
 
@@ -119,4 +121,16 @@ CustomPrediction (1) ──── (N) PredictionVote ──resuelve──▶ ran
 | `elo.MAX_ELO_STAKE` | 1000 | Tope de Beths por apuesta individual |
 | `elo.DAILY_ELO_COUNTED_BETS` | 5 | Apuestas liquidadas por día y cuenta que mueven el ELO |
 | `elo.PROVISIONAL_COUNTED_BETS` | 20 | Umbral de apuestas liquidadas bajo el cual el ranking se considera "provisional" |
-| `SETTLEMENT_DELAY_MINUTES` | 90 | Tiempo tras colocar una apuesta hasta poder liquidarla |
+| `SETTLEMENT_DELAY_MINUTES` | 90 | Tiempo tras el kickoff real (o tras colocar la apuesta si no se conoce) antes de empezar a consultar el resultado real *(Revisión 2026-07-31: throttle, ya no única condición — ver Decision 9)* |
+
+## Esquema SQL nuevo (Revisión 2026-07-31)
+
+```sql
+CREATE TABLE IF NOT EXISTS match_results (
+    match_id TEXT PRIMARY KEY,
+    outcome TEXT NOT NULL,
+    resolved_at TEXT NOT NULL
+)
+```
+
+Caché de resultados reales ya resueltos (Decision 8 revisada); `placed_bets` gana además la columna `elo_delta INTEGER` (Decision 13) vía la misma migración `_ensure_column` que `settled_at`.

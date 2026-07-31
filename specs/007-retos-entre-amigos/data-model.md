@@ -41,7 +41,7 @@ No hay transición hacia atrás; una vez fuera de `pending`, el reto es terminal
 ## Reutilizado sin cambios
 
 - `AccountProfile.beths` — mismo saldo ya usado por `bet_repository.py` y `social_repository.py` (recompensas de hito); ningún campo nuevo en `AccountProfile`.
-- `match_results.generate_match_result(match_id)` — mismo resultado simulado que liquida `PlacedBet`.
+- `match_results.resolve_match_result(match_id)` — mismo resultado real (consultado en football-data.org/PandaScore y cacheado) que liquida `PlacedBet`; devuelve `None` mientras la fuente no lo confirme (revisión 2026-07-31, ver `006-elo/research.md`).
 - `bet_repository.SETTLEMENT_DELAY_MINUTES` — misma ventana de 90 minutos, importada, no duplicada.
 - `social_repository.is_friend(account_id, other_account_id)` — misma comprobación de amistad ya usada en la pantalla Social.
 - `mock_dataset_repository.find_match_by_id` / `odds.is_open_for_betting` — misma validación de partido ya usada por `bet_repository._resolve_selection`.

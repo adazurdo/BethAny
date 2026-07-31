@@ -7,7 +7,7 @@ from typing import Any
 from .account_repository import get_account_by_id
 from .bet_repository import OUTCOMES, SETTLEMENT_DELAY_MINUTES
 from .database import dumps, get_connection, initialize_database, loads
-from .match_results import generate_match_result
+from .match_results import resolve_match_result
 from .mock_dataset_repository import find_match_by_id
 from .models import FriendChallenge, MockMatch
 from .odds import can_draw, is_open_for_betting
@@ -312,8 +312,9 @@ def resolve_custom_challenge(account_id: str, challenge_id: str, result_option: 
 
 def _settle_due_challenges(account_id: str) -> None:
     """Lazily settle every accepted MATCH challenge involving this account whose match is
-    old enough to be considered finished, reusing the exact same simulated result and
-    settlement window as `bet_repository._settle_due_bets` (see
+    old enough to plausibly be finished AND, per `resolve_match_result`, actually confirmed
+    finished by the real provider - reusing the exact same real-result resolution and
+    settlement throttle window as `bet_repository._settle_due_bets` (see
     `specs/007-retos-entre-amigos/research.md` Decision 3) — no Elo effect (Decision 2) and,
     since the "no currency" revision, no Beths effect either: settlement only decides the
     head-to-head winner (see `head_to_head_counts`).
@@ -337,7 +338,10 @@ def _settle_due_challenges(account_id: str) -> None:
         if now < reference + timedelta(minutes=SETTLEMENT_DELAY_MINUTES):
             continue
 
-        result = generate_match_result(challenge.match_id)
+        result = resolve_match_result(challenge.match_id)
+        if result is None:
+            continue  # real result not confirmed yet - stays accepted
+
         winner_id = challenge.challenger_account_id if result == challenge.outcome else challenge.opponent_account_id
         settled_at = now.isoformat()
 

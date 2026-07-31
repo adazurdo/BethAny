@@ -183,6 +183,13 @@ def initialize_database() -> None:
             )
         """)
         connection.execute("""
+            CREATE TABLE IF NOT EXISTS match_results (
+                match_id TEXT PRIMARY KEY,
+                outcome TEXT NOT NULL,
+                resolved_at TEXT NOT NULL
+            )
+        """)
+        connection.execute("""
             CREATE TABLE IF NOT EXISTS elo_milestone_awards (
                 id TEXT PRIMARY KEY,
                 account_id TEXT NOT NULL,
@@ -197,6 +204,10 @@ def initialize_database() -> None:
         # persisting or querying it) — both are added here for the settlement work in 006-elo.
         _ensure_column(connection, "placed_bets", "status", "TEXT NOT NULL DEFAULT 'realizada'")
         _ensure_column(connection, "placed_bets", "settled_at", "TEXT")
+        # NULL while pending; once settled, the exact Elo change this bet applied to the
+        # account (can be 0/None even when settled if the daily Elo-counted cap was already
+        # spent - see bet_repository._apply_elo_for_settlement).
+        _ensure_column(connection, "placed_bets", "elo_delta", "INTEGER")
         _ensure_column(connection, "account_state", "friends_json", "TEXT NOT NULL DEFAULT '[]'")
         _rename_column(connection, "elo_milestone_awards", "bonus_coins", "bonus_beths")
         # `friend_challenges` originally only supported match challenges (007-retos-entre-amigos);
