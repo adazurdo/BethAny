@@ -75,22 +75,74 @@ export type QuickStakeOption = {
   deltaIfWin: number;
 };
 
-// Quick-pick stakes for the bet slip, phrased by their Elo payoff instead of a flat Beths
-// amount: two nearby stakes (e.g. 10 vs 11 Beths) can round to the identical Elo delta
-// because stakeMultiplier is a log curve, which read as a bug when buttons were labelled in
-// Beths. Fixed Elo targets don't fully fix this either — the achievable Elo range is bounded
-// per odds (stakeMultiplier only ever spans [STAKE_MULT_MIN, STAKE_MULT_MAX]), so a low-odds
-// bet can make several fixed targets collapse onto the same minimum stake. Instead, each
-// option picks a fixed *fraction* of that achievable multiplier range directly — evenly
-// spaced in log-stake space, so the four options are always four distinct stakes (and
-// therefore visibly different Elo payoffs) for any odds.
-const QUICK_STAKE_MULTIPLIER_FRACTIONS = [0.15, 0.4, 0.7, 1.0];
+const MIN_STAKE = 1;
 
-export function quickStakeOptions(currentElo: number, gamesPlayed: number, odds: number): QuickStakeOption[] {
-  return QUICK_STAKE_MULTIPLIER_FRACTIONS.map((fraction) => {
-    const targetMultiplier = STAKE_MULT_MIN + fraction * (STAKE_MULT_MAX - STAKE_MULT_MIN);
-    const rawStake = Math.pow(10, (targetMultiplier - 0.45) / 0.35);
-    const stake = clamp(Math.round(rawStake), 1, MAX_ELO_STAKE);
-    return { stake, deltaIfWin: previewEloDelta(currentElo, gamesPlayed, odds, stake).deltaIfWin };
-  });
+export type EloRange = {
+  minElo: number;
+  maxElo: number;
+};
+
+// The Elo gained on a win only ever spans stakeMultiplier's fixed [0.8, 1.5] range (see
+// stakeMultiplier above) - every stake below ~10 already sits at the 0.8 floor, and
+// MAX_ELO_STAKE (1000) sits at the 1.5 ceiling. So for a given bet (fixed odds/k), the
+// achievable Elo-on-win is bounded regardless of how much the player could stake - `maxBeths`
+// only matters insofar as it may cap the stake *below* the point where the ceiling is reached.
+export function achievableEloRange(gamesPlayed: number, odds: number, maxBeths: number): EloRange | null {
+  if (maxBeths < MIN_STAKE) return null;
+  const k = kFactor(gamesPlayed);
+  const p = impliedProbability(odds);
+  const cappedMax = clamp(maxBeths, MIN_STAKE, MAX_ELO_STAKE);
+  const minM = stakeMultiplier(MIN_STAKE);
+  const maxM = stakeMultiplier(cappedMax);
+  return {
+    minElo: Math.round(k * minM * (1 - p)),
+    maxElo: Math.round(k * maxM * (1 - p)),
+  };
+}
+
+export type StakeForTarget = {
+  stake: number;
+  deltaIfWin: number;
+  deltaIfLose: number;
+};
+
+// Inverts previewEloDelta: given the Elo the player wants to gain on a win, finds the smallest
+// stake (in Beths, the currency actually charged) that achieves it - clamped to what
+// stakeMultiplier can produce and to the player's available Beths.
+export function stakeForTargetElo(gamesPlayed: number, odds: number, targetEloGain: number, maxBeths: number): StakeForTarget | null {
+  if (maxBeths < MIN_STAKE) return null;
+  const k = kFactor(gamesPlayed);
+  const p = impliedProbability(odds);
+  const denom = k * (1 - p);
+  const targetMultiplier = clamp(targetEloGain / denom, STAKE_MULT_MIN, STAKE_MULT_MAX);
+  const rawStake = Math.pow(10, (targetMultiplier - 0.45) / 0.35);
+  // Round up to the cent so the resulting stake never undershoots the requested Elo.
+  const roundedUpStake = Math.ceil(rawStake * 100) / 100;
+  const stake = clamp(roundedUpStake, MIN_STAKE, Math.min(maxBeths, MAX_ELO_STAKE));
+  const m = stakeMultiplier(stake);
+  return {
+    stake,
+    deltaIfWin: Math.round(k * m * (1 - p)),
+    deltaIfLose: Math.round(k * m * (0 - p)),
+  };
+}
+
+// Every distinct Elo-on-win value actually reachable for this bet (odds/k) with the player's
+// available Beths, one button per integer from the achievable minimum to the achievable
+// maximum. Near either edge several integer targets can resolve to the same achieved Elo (the
+// stake needed is capped by MAX_ELO_STAKE or by the player's balance), so consecutive
+// duplicates are collapsed into a single option instead of showing two buttons with an
+// identical label.
+export function allAchievableEloOptions(gamesPlayed: number, odds: number, maxBeths: number): QuickStakeOption[] {
+  const range = achievableEloRange(gamesPlayed, odds, maxBeths);
+  if (!range) return [];
+  const options: QuickStakeOption[] = [];
+  for (let target = range.minElo; target <= range.maxElo; target += 1) {
+    const result = stakeForTargetElo(gamesPlayed, odds, target, maxBeths);
+    if (!result) continue;
+    const last = options[options.length - 1];
+    if (last && last.deltaIfWin === result.deltaIfWin) continue;
+    options.push({ stake: result.stake, deltaIfWin: result.deltaIfWin });
+  }
+  return options;
 }

@@ -2,16 +2,27 @@ import { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from "react-native";
 import { colors, radii, shadows, spacing, fontSizes } from "../../../theme";
 import { fetchMyBets, PlacedBet } from "../../../data/bets";
+import { isMatchLive } from "../../../data/matchStatus";
 import { BethsIcon } from "../../../components/BethsIcon";
 import { Icon } from "../../../components/Icon";
 import { Tappable } from "../../../components/Tappable";
 import { useStreak } from "../../../components/StreakContext";
 
-const OUTCOME_LABELS: Record<string, string> = {
+const FALLBACK_OUTCOME_LABELS: Record<string, string> = {
   local: "Local",
   empate: "Empate",
   visitante: "Visitante",
 };
+
+// `matchLabel` is always "{homeTeamName} vs {awayTeamName}" (see backend's `_match_label`),
+// so the team name for "local"/"visitante" can be read straight back out of it instead of
+// showing the generic "Local"/"Visitante" the player never picked a team name for.
+function outcomeLabelFor(outcome: string, matchLabel: string): string {
+  const [home, away] = matchLabel.split(" vs ");
+  if (outcome === "local" && home) return home;
+  if (outcome === "visitante" && away) return away;
+  return FALLBACK_OUTCOME_LABELS[outcome] ?? outcome;
+}
 
 const STATUS_LABELS: Record<string, string> = {
   realizada: "Pendiente",
@@ -145,11 +156,17 @@ export default function MyBetsScreen() {
             <View key={`${bet.id}-${selection.matchId}`} style={styles.selectionRow}>
               <View style={styles.selectionInfo}>
                 <Text style={styles.selectionLabel} numberOfLines={1}>
-                  {selection.matchLabel} — {OUTCOME_LABELS[selection.outcome] ?? selection.outcome}
+                  {selection.matchLabel} — {outcomeLabelFor(selection.outcome, selection.matchLabel)}
                 </Text>
+                {selection.matchStatus && isMatchLive(selection.matchStatus) ? (
+                  <View style={styles.liveNowChip}>
+                    <View style={styles.liveNowDot} />
+                    <Text style={styles.liveNowChipText}>EN VIVO</Text>
+                  </View>
+                ) : null}
                 {selection.result ? (
                   <Text style={[styles.selectionResult, { color: selection.won ? colors.success : colors.danger }]}>
-                    {selection.won ? "✓" : "✗"} Resultado: {OUTCOME_LABELS[selection.result] ?? selection.result}
+                    {selection.won ? "✓" : "✗"} Resultado: {outcomeLabelFor(selection.result, selection.matchLabel)}
                   </Text>
                 ) : null}
               </View>
@@ -293,6 +310,29 @@ const styles = StyleSheet.create({
   },
   selectionLabel: {
     color: colors.text,
+  },
+  liveNowChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    alignSelf: "flex-start",
+    marginTop: 2,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: radii.pill,
+    backgroundColor: "rgba(244,80,109,0.15)",
+  },
+  liveNowDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.danger,
+  },
+  liveNowChipText: {
+    color: colors.danger,
+    fontSize: 11,
+    fontWeight: "900",
+    letterSpacing: 0.3,
   },
   selectionResult: {
     fontSize: fontSizes.xs,

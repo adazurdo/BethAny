@@ -14,6 +14,7 @@ import { accentForKey, colors, radii, spacing, shadows, fontSizes } from "../../
 import { fetchActivityFeed, ActivityEvent } from "../../data/activity";
 import { fetchMyBets, PlacedBet } from "../../data/bets";
 import { CompetitionSource, MockCompetitionMatch, MockTeam, fetchMockCompetitionMatches, fetchMockCompetitions } from "../../data/mockCompetitions";
+import { isMatchOpen } from "../../data/matchStatus";
 import DesktopShell from "../../components/DesktopShell";
 
 const PREFERRED_COMPETITION = "Mundial 2026";
@@ -25,6 +26,7 @@ export default function HomeScreen() {
 
   const [competitions, setCompetitions] = useState<CompetitionSource[] | null>(null);
   const [featuredCompetition, setFeaturedCompetition] = useState<string | null>(null);
+  const [featuredSport, setFeaturedSport] = useState<string>("Football");
   const [featuredMatches, setFeaturedMatches] = useState<MockCompetitionMatch[] | null>(null);
   const [featuredTeams, setFeaturedTeams] = useState<Map<string, MockTeam>>(new Map());
   const [matchesLoading, setMatchesLoading] = useState(true);
@@ -55,6 +57,7 @@ export default function HomeScreen() {
           return;
         }
         setFeaturedCompetition(preferred.displayName);
+        setFeaturedSport(preferred.sport);
         const result = await fetchMockCompetitionMatches(preferred.code);
         if (cancelled) return;
         setFeaturedMatches(result.matches);
@@ -104,7 +107,7 @@ export default function HomeScreen() {
 
   const openFeaturedMatches = useMemo(() => {
     return (featuredMatches ?? [])
-      .filter((match) => match.status.toLowerCase() === "scheduled" || match.status.toLowerCase() === "timed")
+      .filter((match) => isMatchOpen(match.status))
       .slice(0, 4);
   }, [featuredMatches]);
 
@@ -171,7 +174,7 @@ export default function HomeScreen() {
               <EventCard
                 key={match.id}
                 title={`${match.homeTeamName} vs ${match.awayTeamName}`}
-                sport="Football"
+                sport={featuredSport}
                 league={featuredCompetition ?? ""}
                 startLabel={match.kickoffLabel}
                 homeTeam={{ name: match.homeTeamName, crestUrl: featuredTeams.get(match.homeTeamId)?.crestUrl }}
@@ -182,6 +185,7 @@ export default function HomeScreen() {
                   drawOdds: match.drawOdds,
                   awayOdds: match.awayOdds,
                   status: match.status,
+                  stageLabel: match.stageLabel,
                 }}
               />
             ))

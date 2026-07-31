@@ -40,6 +40,10 @@ def _request(path: str) -> dict[str, Any]:
         raise FootballDataError(f"Respuesta invalida de football-data.org para {path}") from exc
 
 
+def fetch_competition_info(external_code: str) -> dict[str, Any]:
+    return _request(f"/competitions/{external_code}")
+
+
 def fetch_competition_teams(external_code: str) -> list[dict[str, Any]]:
     payload = _request(f"/competitions/{external_code}/teams")
     teams = payload.get("teams")

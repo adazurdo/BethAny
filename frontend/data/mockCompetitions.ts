@@ -16,6 +16,9 @@ export type CompetitionSource = {
   // False while the external source has no published fixtures yet and the backend is
   // showing generate_mock_matches()'s synthetic pairings instead.
   hasRealFixtures: boolean;
+  // Real per-competition emblem (football-data.org only for now). Esports game icons are
+  // static assets the frontend renders directly (see GAME_ICON_URL), so this is null for them.
+  iconUrl: string | null;
 };
 
 export type MockTeam = {
@@ -37,6 +40,12 @@ export type MockCompetitionMatch = {
   awayTeamName: string;
   kickoffLabel: string;
   status: string;
+  // Non-null only for knockout/elimination stages (playoffs, cuartos, semifinal, final...).
+  stageLabel: string | null;
+  // PandaScore-only: the specific league within a videogame (e.g. "LEC", "LCK", "LPL").
+  // Null for football-data.org matches, whose competition already IS a single league.
+  leagueName: string | null;
+  leagueImageUrl: string | null;
   homeOdds: number;
   drawOdds: number;
   awayOdds: number;
@@ -66,6 +75,7 @@ type RawCompetitionSource = {
   last_synced_at: string | null;
   last_error: string | null;
   has_real_fixtures: boolean;
+  icon_url: string | null;
 };
 
 type RawMockTeam = {
@@ -87,6 +97,9 @@ type RawMockMatch = {
   away_team_name: string;
   kickoff_label: string;
   status: string;
+  stage_label: string | null;
+  league_name: string | null;
+  league_image_url: string | null;
   home_odds: number;
   draw_odds: number;
   away_odds: number;
@@ -108,6 +121,7 @@ function toCompetitionSource(raw: RawCompetitionSource): CompetitionSource {
     lastSyncedAt: raw.last_synced_at,
     lastError: raw.last_error,
     hasRealFixtures: raw.has_real_fixtures,
+    iconUrl: raw.icon_url,
   };
 }
 
@@ -133,6 +147,9 @@ function toMockMatch(raw: RawMockMatch): MockCompetitionMatch {
     awayTeamName: raw.away_team_name,
     kickoffLabel: raw.kickoff_label,
     status: raw.status,
+    stageLabel: raw.stage_label,
+    leagueName: raw.league_name,
+    leagueImageUrl: raw.league_image_url,
     homeOdds: raw.home_odds,
     drawOdds: raw.draw_odds,
     awayOdds: raw.away_odds,

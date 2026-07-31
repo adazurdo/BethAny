@@ -48,6 +48,15 @@ def fetch_upcoming_matches(videogame_slug: str, per_page: int = 25) -> list[dict
     return payload if isinstance(payload, list) else []
 
 
+def fetch_running_matches(videogame_slug: str, per_page: int = 25) -> list[dict[str, Any]]:
+    """Matches currently live. PandaScore keeps these on a separate endpoint from
+    `/matches/upcoming` (which only ever returns "not_started"/"canceled") - without this,
+    a match that has actually started disappears from our data entirely instead of showing
+    as in progress."""
+    payload = _request(f"/{videogame_slug}/matches/running", {"per_page": per_page})
+    return payload if isinstance(payload, list) else []
+
+
 def fetch_teams(videogame_slug: str, per_page: int = 100) -> list[dict[str, Any]]:
     payload = _request(f"/{videogame_slug}/teams", {"per_page": per_page})
     return payload if isinstance(payload, list) else []

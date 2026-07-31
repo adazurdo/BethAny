@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Animated, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
 import { colors, radii, shadows, spacing, fontSizes, fontWeights } from "../theme";
 import { useBetSlip, BetSlipTab, Selection } from "./BetSlipContext";
 import type { EloPreview, QuickStakeOption } from "../data/eloPreview";
@@ -15,6 +15,29 @@ function potentialWinnings(stakeRaw: string, odds: number): string | null {
   return (stake * odds).toFixed(2);
 }
 
+function StakeInfoRow({ stakeValue, odds }: { stakeValue: string; odds: number }) {
+  const stake = Number(stakeValue);
+  const hasStake = Number.isFinite(stake) && stake > 0;
+  return (
+    <View style={styles.stakeInfoRow}>
+      <View style={styles.stakeInfoItem}>
+        <Text style={styles.stakeInfoLabel}>Apuestas</Text>
+        <View style={styles.stakeInfoValueRow}>
+          <Text style={styles.stakeInfoValue}>{hasStake ? stakeValue : "—"}</Text>
+          <BethsIcon size={12} color={colors.muted} />
+        </View>
+      </View>
+      <View style={styles.stakeInfoItem}>
+        <Text style={styles.stakeInfoLabel}>Si aciertas cobras</Text>
+        <View style={styles.stakeInfoValueRow}>
+          <Text style={styles.stakeInfoValue}>{potentialWinnings(stakeValue, odds) ?? "—"}</Text>
+          <BethsIcon size={12} color={colors.accent} />
+        </View>
+      </View>
+    </View>
+  );
+}
+
 function EloPreviewRow({ preview, countsToday }: { preview: EloPreview | null; countsToday: boolean }) {
   if (!preview) return null;
   return (
@@ -28,15 +51,53 @@ function EloPreviewRow({ preview, countsToday }: { preview: EloPreview | null; c
   );
 }
 
-function QuickStakeRow({ options, onPick }: { options: QuickStakeOption[]; onPick: (stake: number) => void }) {
+// One value at a time instead of a wall of buttons: the current Elo target sits in the middle,
+// "−"/"+" step to the previous/next value actually reachable with the account's current Beths
+// for this odds (never a free-text field, so it's never possible to land on an unreachable
+// value). Auto-picks the lowest option the first time there's nothing selected yet, so there's
+// always a valid value showing instead of an empty state.
+function EloStepper({ options, selectedStake, onPick }: { options: QuickStakeOption[]; selectedStake: string; onPick: (stake: number) => void }) {
+  const selected = Number(selectedStake);
+  const hasSelection = options.some((o) => o.stake === selected);
+
+  useEffect(() => {
+    if (!hasSelection && options.length > 0) {
+      onPick(options[0].stake);
+    }
+  }, [hasSelection, options]);
+
+  if (options.length === 0) {
+    return <Text style={styles.eloRangeText}>No tienes Beths suficientes para apostar.</Text>;
+  }
+  if (!hasSelection) return null;
+
+  const index = options.findIndex((o) => o.stake === selected);
+  const current = options[index];
+  const canDecrease = index > 0;
+  const canIncrease = index < options.length - 1;
+
   return (
-    <View style={styles.quickRow}>
-      {options.map((option) => (
-        <Pressable key={option.stake} style={styles.quickButton} onPress={() => onPick(option.stake)}>
-          <Text style={styles.quickButtonText}>+{option.deltaIfWin} Elo</Text>
-          <Text style={styles.quickButtonSubtext}>{option.stake} B</Text>
-        </Pressable>
-      ))}
+    <View style={styles.eloStepper}>
+      <Pressable
+        style={[styles.stepperButton, !canDecrease ? styles.stepperButtonDisabled : null]}
+        onPress={() => canDecrease && onPick(options[index - 1].stake)}
+        disabled={!canDecrease}
+        hitSlop={8}
+      >
+        <Text style={styles.stepperButtonText}>−</Text>
+      </Pressable>
+      <View style={styles.stepperCenter}>
+        <Text style={styles.stepperValue}>+{current.deltaIfWin} Elo</Text>
+        <Text style={styles.stepperSubtext}>{current.stake} B</Text>
+      </View>
+      <Pressable
+        style={[styles.stepperButton, !canIncrease ? styles.stepperButtonDisabled : null]}
+        onPress={() => canIncrease && onPick(options[index + 1].stake)}
+        disabled={!canIncrease}
+        hitSlop={8}
+      >
+        <Text style={styles.stepperButtonText}>+</Text>
+      </Pressable>
     </View>
   );
 }
@@ -45,18 +106,17 @@ type TicketRowProps = {
   selection: Selection;
   activeTab: BetSlipTab;
   stakeValue: string;
-  onStakeChange: (value: string) => void;
+  onPickStake: (stake: number) => void;
   onRemove: () => void;
-  onSubmit: () => void;
   eloPreview: EloPreview | null;
   eloCountsToday: boolean;
-  quickOptions: QuickStakeOption[];
+  eloOptions: QuickStakeOption[];
 };
 
 // Owns its own exit animation so removing a selection visibly fades/slides it
 // away instead of just vanishing from the list; the real removal only happens
 // once the animation finishes.
-function TicketRow({ selection, activeTab, stakeValue, onStakeChange, onRemove, onSubmit, eloPreview, eloCountsToday, quickOptions }: TicketRowProps) {
+function TicketRow({ selection, activeTab, stakeValue, onPickStake, onRemove, eloPreview, eloCountsToday, eloOptions }: TicketRowProps) {
   const exitAnim = useRef(new Animated.Value(1)).current;
   const [removing, setRemoving] = useState(false);
 
@@ -96,24 +156,10 @@ function TicketRow({ selection, activeTab, stakeValue, onStakeChange, onRemove, 
 
       {activeTab === "simple" ? (
         <>
-          <View style={styles.stakeRow}>
-            <TextInput
-              value={stakeValue}
-              onChangeText={onStakeChange}
-              placeholder="Importe"
-              placeholderTextColor={colors.muted}
-              keyboardType="decimal-pad"
-              style={styles.stakeInput}
-              returnKeyType="done"
-              onSubmitEditing={onSubmit}
-            />
-            <View style={styles.winningsRow}>
-              <Text style={styles.winnings}>{potentialWinnings(stakeValue, selection.odds) ?? "—"}</Text>
-              <BethsIcon size={13} color={colors.accent} />
-            </View>
-          </View>
+          <Text style={styles.eloGridLabel}>Elige cuánto Elo quieres ganar</Text>
+          <EloStepper options={eloOptions} selectedStake={stakeValue} onPick={onPickStake} />
+          <StakeInfoRow stakeValue={stakeValue} odds={selection.odds} />
           <EloPreviewRow preview={eloPreview} countsToday={eloCountsToday} />
-          <QuickStakeRow options={quickOptions} onPick={(stake) => onStakeChange(String(stake))} />
         </>
       ) : null}
     </Animated.View>
@@ -137,7 +183,7 @@ export function BetSlipPanel() {
     placeCombinada,
     eloPreview,
     eloRemainingToday,
-    quickStakeOptions,
+    eloOptions,
   } = useBetSlip();
 
   const [justPlaced, setJustPlaced] = useState(false);
@@ -201,12 +247,11 @@ export function BetSlipPanel() {
             selection={selection}
             activeTab={activeTab}
             stakeValue={stakes[selection.matchId] ?? ""}
-            onStakeChange={(value) => setStake(selection.matchId, value)}
+            onPickStake={(stake) => setStake(selection.matchId, String(stake))}
             onRemove={() => removeSelection(selection.matchId)}
-            onSubmit={handleConfirm}
             eloPreview={eloPreview(selection.odds, stakes[selection.matchId] ?? "")}
             eloCountsToday={eloRemainingToday > 0}
-            quickOptions={quickStakeOptions(selection.odds)}
+            eloOptions={eloOptions(selection.odds)}
           />
         ))}
       </View>
@@ -217,24 +262,14 @@ export function BetSlipPanel() {
             <Text style={styles.stubText}>Cuota combinada</Text>
             <Text style={styles.ticketOdds}>{formatOdds(combinedOdds)}</Text>
           </View>
-          <View style={styles.stakeRow}>
-            <TextInput
-              value={combinadaStake}
-              onChangeText={setCombinadaStake}
-              placeholder="Importe"
-              placeholderTextColor={colors.muted}
-              keyboardType="decimal-pad"
-              style={styles.stakeInput}
-              returnKeyType="done"
-              onSubmitEditing={handleConfirm}
-            />
-            <View style={styles.winningsRow}>
-              <Text style={styles.winnings}>{potentialWinnings(combinadaStake, combinedOdds) ?? "—"}</Text>
-              <BethsIcon size={13} color={colors.accent} />
-            </View>
-          </View>
+          <Text style={styles.eloGridLabel}>Elige cuánto Elo quieres ganar</Text>
+          <EloStepper
+            options={eloOptions(combinedOdds)}
+            selectedStake={combinadaStake}
+            onPick={(stake) => setCombinadaStake(String(stake))}
+          />
+          <StakeInfoRow stakeValue={combinadaStake} odds={combinedOdds} />
           <EloPreviewRow preview={eloPreview(combinedOdds, combinadaStake)} countsToday={eloRemainingToday > 0} />
-          <QuickStakeRow options={quickStakeOptions(combinedOdds)} onPick={(stake) => setCombinadaStake(String(stake))} />
         </View>
       ) : null}
 
@@ -330,31 +365,81 @@ const styles = StyleSheet.create({
     color: colors.primary,
     fontWeight: "900",
   },
-  stakeRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
+  eloGridLabel: {
+    color: colors.muted,
+    fontSize: fontSizes.sm,
+    fontWeight: "700",
     marginTop: 8,
   },
-  stakeInput: {
-    flex: 1,
-    backgroundColor: colors.background,
-    borderRadius: radii.sm,
-    borderWidth: 1,
-    borderColor: colors.border,
-    color: colors.text,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
+  eloRangeText: {
+    color: colors.muted,
+    fontSize: fontSizes.sm,
+    marginTop: 4,
   },
-  winningsRow: {
+  eloStepper: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    marginTop: 6,
+  },
+  stepperButton: {
+    width: 36,
+    height: 36,
+    borderRadius: radii.sm,
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+    backgroundColor: colors.background,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  stepperButtonDisabled: {
+    borderColor: colors.border,
+    opacity: 0.4,
+  },
+  stepperButtonText: {
+    color: colors.primary,
+    fontWeight: "900",
+    fontSize: 20,
+    lineHeight: 22,
+  },
+  stepperCenter: {
+    flex: 1,
+    alignItems: "center",
+  },
+  stepperValue: {
+    color: colors.primary,
+    fontWeight: "900",
+    fontSize: fontSizes.lg,
+  },
+  stepperSubtext: {
+    color: colors.muted,
+    fontSize: fontSizes.sm,
+    fontWeight: "700",
+    marginTop: 1,
+  },
+  stakeInfoRow: {
+    flexDirection: "row",
+    gap: spacing.md,
+    marginTop: 8,
+  },
+  stakeInfoItem: {
+    flex: 1,
+  },
+  stakeInfoLabel: {
+    color: colors.muted,
+    fontSize: 11,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.3,
+  },
+  stakeInfoValueRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    minWidth: 64,
-    justifyContent: "flex-end",
+    marginTop: 2,
   },
-  winnings: {
-    color: colors.accent,
+  stakeInfoValue: {
+    color: colors.text,
     fontWeight: "800",
   },
   eloPreviewRow: {
@@ -377,31 +462,6 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.sm,
     fontStyle: "italic",
     marginTop: 2,
-  },
-  quickRow: {
-    flexDirection: "row",
-    gap: 6,
-    marginTop: spacing.sm,
-  },
-  quickButton: {
-    flex: 1,
-    backgroundColor: colors.surfaceSoft,
-    borderRadius: radii.sm,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingVertical: 8,
-    alignItems: "center",
-  },
-  quickButtonText: {
-    color: colors.primary,
-    fontWeight: "800",
-    fontSize: fontSizes.sm,
-  },
-  quickButtonSubtext: {
-    color: colors.muted,
-    fontSize: 10,
-    fontWeight: "700",
-    marginTop: 1,
   },
   combinadaHint: {
     color: colors.muted,

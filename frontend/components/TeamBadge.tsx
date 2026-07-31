@@ -9,7 +9,9 @@ type TeamBadgeProps = {
 };
 
 function initialsFor(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
+  const trimmed = name.trim();
+  if (trimmed.toUpperCase() === "TBD") return "TBD";
+  const parts = trimmed.split(/\s+/).filter(Boolean);
   if (parts.length === 0) return "?";
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
   return (parts[0][0] + parts[1][0]).toUpperCase();
@@ -17,13 +19,13 @@ function initialsFor(name: string): string {
 
 export function TeamBadge({ name, crestUrl, size = 28 }: TeamBadgeProps) {
   const [failed, setFailed] = useState(false);
-  const dimension = { width: size, height: size, borderRadius: size / 2 };
+  const dimension = { width: size, height: size };
 
   if (crestUrl && !failed) {
     return (
       <Image
         source={{ uri: crestUrl }}
-        style={[styles.image, dimension]}
+        style={dimension}
         resizeMode="contain"
         onError={() => setFailed(true)}
         accessibilityLabel={`Escudo de ${name}`}
@@ -32,16 +34,13 @@ export function TeamBadge({ name, crestUrl, size = 28 }: TeamBadgeProps) {
   }
 
   return (
-    <View style={[styles.placeholder, dimension]}>
+    <View style={[styles.placeholder, dimension, { borderRadius: size / 2 }]}>
       <Text style={[styles.placeholderText, { fontSize: size * 0.38 }]}>{initialsFor(name)}</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  image: {
-    backgroundColor: colors.surfaceSoft,
-  },
   placeholder: {
     backgroundColor: colors.surfaceSoft,
     borderWidth: 1,

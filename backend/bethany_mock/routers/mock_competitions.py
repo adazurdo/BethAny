@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
@@ -9,6 +10,23 @@ from ..mock_dataset_service import sync_competition
 from ..odds import generate_match_odds
 
 router = APIRouter()
+
+# How long a competition marked as having real fixtures is trusted before we double-check with
+# the source: without this, a finished tournament (e.g. a World Cup) keeps showing as available
+# forever once its last cached snapshot still had "remaining" matches at sync time.
+STALE_AFTER = timedelta(hours=6)
+
+
+def _is_stale(last_synced_at: str | None) -> bool:
+    if not last_synced_at:
+        return True
+    try:
+        last = datetime.fromisoformat(last_synced_at)
+    except ValueError:
+        return True
+    if last.tzinfo is None:
+        last = last.replace(tzinfo=timezone.utc)
+    return datetime.now(timezone.utc) - last > STALE_AFTER
 
 
 def _serialize_match(match) -> dict[str, Any]:
@@ -27,7 +45,16 @@ def _serialize_competition_source(source, snapshot=None) -> dict[str, Any]:
 
 @router.get("/mock/competitions")
 def list_competitions() -> dict[str, Any]:
-    competitions = [_serialize_competition_source(source) for source in list_competition_sources()]
+    competitions = []
+    for source in list_competition_sources():
+        snapshot = get_snapshot(source.code)
+        serialized = _serialize_competition_source(source, snapshot)
+        # Only worth double-checking sources that currently claim to have fixtures - one
+        # with none already correctly reads as unavailable, stale data or not.
+        if serialized["has_real_fixtures"] and _is_stale(source.last_synced_at):
+            result = sync_competition(source.code)
+            serialized = _serialize_competition_source(result["source"], result.get("snapshot"))
+        competitions.append(serialized)
     return {"competitions": competitions}
 
 

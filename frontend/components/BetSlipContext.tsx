@@ -2,7 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 import { useAuth } from "./AuthContext";
 import type { BetSelection } from "../data/auth";
 import { BetOutcome, placeCombinadaBet, placeSimpleBets } from "../data/bets";
-import { eloBetsRemainingToday, EloPreview, previewEloDelta, quickStakeOptions, QuickStakeOption } from "../data/eloPreview";
+import { allAchievableEloOptions, eloBetsRemainingToday, EloPreview, MAX_ELO_STAKE, previewEloDelta, QuickStakeOption } from "../data/eloPreview";
 
 type Selection = {
   id: string;
@@ -42,7 +42,10 @@ type BetSlipContextValue = {
   placeCombinada: () => Promise<boolean>;
   eloPreview: (odds: number, stakeRaw: string) => EloPreview | null;
   eloRemainingToday: number;
-  quickStakeOptions: (odds: number) => QuickStakeOption[];
+  // Every Elo-on-win value actually reachable with the account's current Beths for a given
+  // odds - the bet slip only offers these as buttons, it never lets the player type a Beths
+  // amount (or an Elo target) freely.
+  eloOptions: (odds: number) => QuickStakeOption[];
 };
 
 const OUTCOMES: BetOutcome[] = ["local", "empate", "visitante"];
@@ -154,6 +157,8 @@ export function BetSlipProvider({ children }: { children: React.ReactNode }) {
     setStakes((prev) => ({ ...prev, [matchId]: value }));
   }
 
+  const maxAvailableBeths = Math.min(account?.profile.beths ?? 0, MAX_ELO_STAKE);
+
   const canCombine = selections.length >= 2;
 
   const eloRemainingToday = useMemo(() => {
@@ -172,13 +177,13 @@ export function BetSlipProvider({ children }: { children: React.ReactNode }) {
     [account?.profile.elo, account?.profile.eloBetsSettled]
   );
 
-  const getQuickStakeOptions = useCallback(
+  const getEloOptions = useCallback(
     (odds: number): QuickStakeOption[] => {
       const profile = account?.profile;
       if (!profile) return [];
-      return quickStakeOptions(profile.elo, profile.eloBetsSettled, odds);
+      return allAchievableEloOptions(profile.eloBetsSettled, odds, maxAvailableBeths);
     },
-    [account?.profile.elo, account?.profile.eloBetsSettled]
+    [account?.profile.eloBetsSettled, maxAvailableBeths]
   );
 
   const combinedOdds = useMemo(() => {
@@ -195,7 +200,7 @@ export function BetSlipProvider({ children }: { children: React.ReactNode }) {
       return { matchId: s.matchId, outcome: s.outcome, stake };
     });
     if (parsedSelections.some((s) => !Number.isFinite(s.stake) || s.stake <= 0)) {
-      setPlaceError("Introduce un importe válido para cada selección.");
+      setPlaceError("Elige cuánto Elo quieres ganar en cada selección.");
       return false;
     }
     setPlacing(true);
@@ -215,7 +220,7 @@ export function BetSlipProvider({ children }: { children: React.ReactNode }) {
     setPlaceError(null);
     const stake = Number(combinadaStake);
     if (!Number.isFinite(stake) || stake <= 0) {
-      setPlaceError("Introduce un importe válido para la combinada.");
+      setPlaceError("Elige cuánto Elo quieres ganar con la combinada.");
       return false;
     }
     if (selections.length < 2) {
@@ -259,7 +264,7 @@ export function BetSlipProvider({ children }: { children: React.ReactNode }) {
         placeCombinada,
         eloPreview,
         eloRemainingToday,
-        quickStakeOptions: getQuickStakeOptions,
+        eloOptions: getEloOptions,
       }}
     >
       {children}

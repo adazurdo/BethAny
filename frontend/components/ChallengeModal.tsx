@@ -6,13 +6,17 @@ import { accentForKey, colors, radii, shadows, spacing } from "../theme";
 import { BetOutcome } from "../data/bets";
 import { ChallengeType, createCustomChallenge, createMatchChallenge } from "../data/challenges";
 import { CompetitionSource, MockCompetitionMatch, fetchMockCompetitionMatches, fetchMockCompetitions } from "../data/mockCompetitions";
+import { isMatchOpen } from "../data/matchStatus";
 import { SocialFriend } from "../data/social";
 
-const OUTCOME_OPTIONS: { value: BetOutcome; label: string }[] = [
-  { value: "local", label: "Local" },
-  { value: "empate", label: "Empate" },
-  { value: "visitante", label: "Visitante" },
-];
+// Esports matches (best-of series) never end in a draw - only shown for other sports.
+function outcomeOptionsFor(match: MockCompetitionMatch, canDraw: boolean): { value: BetOutcome; label: string }[] {
+  return [
+    { value: "local", label: match.homeTeamName },
+    ...(canDraw ? [{ value: "empate" as BetOutcome, label: "Empate" }] : []),
+    { value: "visitante", label: match.awayTeamName },
+  ];
+}
 
 const TYPE_OPTIONS: { value: ChallengeType; label: string; icon: string }[] = [
   { value: "match", label: "Partido oficial", icon: "matches" },
@@ -60,12 +64,14 @@ export function ChallengeModal({ visible, friends, onClose, onCreated }: Challen
     }
     setLoadingMatches(true);
     fetchMockCompetitionMatches(competitionCode)
-      .then((result) => setMatches(result.matches.filter((match) => match.status === "scheduled" || match.status === "timed")))
+      .then((result) => setMatches(result.matches.filter((match) => isMatchOpen(match.status))))
       .catch(() => setMatches([]))
       .finally(() => setLoadingMatches(false));
   }, [competitionCode]);
 
   const filledOptions = options.map((option) => option.trim()).filter(Boolean);
+  const selectedCompetition = competitions.find((competition) => competition.code === competitionCode);
+  const canDraw = selectedCompetition?.sport !== "Esports";
 
   function reset() {
     setMode("match");
@@ -226,7 +232,7 @@ export function ChallengeModal({ visible, friends, onClose, onCreated }: Challen
                         </Text>
                         <Text style={styles.matchMeta}>{match.kickoffLabel}</Text>
                         <View style={styles.outcomeRow}>
-                          {OUTCOME_OPTIONS.map((option) => {
+                          {outcomeOptionsFor(match, canDraw).map((option) => {
                             const isSelected = matchId === match.id && outcome === option.value;
                             return (
                               <Tappable
@@ -238,7 +244,13 @@ export function ChallengeModal({ visible, friends, onClose, onCreated }: Challen
                                 style={[styles.outcomeButton, isSelected ? styles.outcomeButtonActive : null]}
                               >
                                 {isSelected ? <Icon glyph="check" size={12} color={colors.background} /> : null}
-                                <Text style={[styles.outcomeText, isSelected ? styles.outcomeTextActive : null]}>{option.label}</Text>
+                                <Text
+                                  style={[styles.outcomeText, isSelected ? styles.outcomeTextActive : null]}
+                                  numberOfLines={1}
+                                  ellipsizeMode="tail"
+                                >
+                                  {option.label}
+                                </Text>
                               </Tappable>
                             );
                           })}

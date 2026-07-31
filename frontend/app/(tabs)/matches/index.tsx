@@ -17,8 +17,9 @@ import {
 import { colors, radii, shadows, spacing } from "../../../theme";
 
 export default function MatchesByCompetitionScreen() {
-  const params = useLocalSearchParams<{ competition?: string }>();
+  const params = useLocalSearchParams<{ competition?: string; league?: string }>();
   const competition = params.competition ?? "Mundial 2026";
+  const league = params.league ?? null;
 
   // Backed by football-data.org (football) or PandaScore (esports) depending on source.provider.
   const [source, setSource] = useState<CompetitionSource | null>(null);
@@ -63,6 +64,11 @@ export default function MatchesByCompetitionScreen() {
     return map;
   }, [teams]);
 
+  const visibleMatches = useMemo(() => {
+    if (!league) return matches;
+    return (matches ?? []).filter((match) => match.leagueName === league);
+  }, [matches, league]);
+
   const isStale = source?.syncStatus === "stale" || source?.syncStatus === "error";
 
   async function handleSync() {
@@ -95,8 +101,10 @@ export default function MatchesByCompetitionScreen() {
           <Icon glyph="matches" size={14} color={colors.accent} />
           <Text style={styles.kicker}>Competicion</Text>
         </View>
-        <Text style={styles.title}>{competition}</Text>
-        <Text style={styles.subtitle}>Partidos disponibles para esta seccion.</Text>
+        <Text style={styles.title}>{league ? `${competition} · ${league}` : competition}</Text>
+        <Text style={styles.subtitle}>
+          {league ? `Partidos de ${league} disponibles en esta seccion.` : "Partidos disponibles para esta seccion."}
+        </Text>
 
         {source ? (
           <View style={styles.syncRow}>
@@ -128,7 +136,7 @@ export default function MatchesByCompetitionScreen() {
         </View>
       ) : null}
 
-      <SectionCard title="Partidos" subtitle={loading ? "Cargando..." : `${matches?.length ?? 0} eventos`} icon="matches" accentColor={colors.sky}>
+      <SectionCard title="Partidos" subtitle={loading ? "Cargando..." : `${visibleMatches?.length ?? 0} eventos`} icon="matches" accentColor={colors.sky}>
         <View style={styles.grid}>
           {loading ? (
             <ActivityIndicator color={colors.primary} />
@@ -137,13 +145,13 @@ export default function MatchesByCompetitionScreen() {
               <Text style={styles.emptyTitle}>Competicion no disponible</Text>
               <Text style={styles.emptyText}>Selecciona otra competencia del panel izquierdo.</Text>
             </View>
-          ) : matches && matches.length > 0 ? (
-            matches.map((match) => (
+          ) : visibleMatches && visibleMatches.length > 0 ? (
+            visibleMatches.map((match) => (
               <EventCard
                 key={match.id}
                 title={`${match.homeTeamName} vs ${match.awayTeamName}`}
                 sport={source?.sport ?? "Football"}
-                league={competition}
+                league={match.leagueName ?? competition}
                 startLabel={match.kickoffLabel}
                 featured={false}
                 homeTeam={{ name: match.homeTeamName, crestUrl: teamsById.get(match.homeTeamId)?.crestUrl }}
@@ -154,6 +162,7 @@ export default function MatchesByCompetitionScreen() {
                   drawOdds: match.drawOdds,
                   awayOdds: match.awayOdds,
                   status: match.status,
+                  stageLabel: match.stageLabel,
                 }}
               />
             ))

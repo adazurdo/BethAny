@@ -207,6 +207,9 @@ def initialize_database() -> None:
         # `competition_sources` originally only ever synced from football-data.org; PandaScore
         # (esports) is a second provider added later, so existing rows default to the original one.
         _ensure_column(connection, "competition_sources", "provider", "TEXT NOT NULL DEFAULT 'football-data'")
+        # Real per-competition emblem (football-data.org only for now; esports game icons are
+        # static assets handled entirely in the frontend, no per-competition source data for them).
+        _ensure_column(connection, "competition_sources", "icon_url", "TEXT")
         connection.commit()
 
 

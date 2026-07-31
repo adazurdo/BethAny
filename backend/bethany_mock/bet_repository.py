@@ -10,7 +10,7 @@ from .database import dumps, get_connection, initialize_database, loads
 from .match_results import generate_match_result
 from .mock_dataset_repository import find_match_by_id
 from .models import MockMatch, PlacedBet, PlacedBetSelection
-from .odds import generate_match_odds, is_open_for_betting
+from .odds import can_draw, generate_match_odds, is_open_for_betting
 from .social_repository import ConflictError, award_elo_milestone
 
 OUTCOMES = {"local", "empate", "visitante"}
@@ -22,10 +22,25 @@ def _utcnow() -> str:
 
 
 def _parse_timestamp(value: str) -> datetime:
-    parsed = datetime.fromisoformat(value)
+    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
     if parsed.tzinfo is None:
         parsed = parsed.replace(tzinfo=timezone.utc)
     return parsed
+
+
+def _match_kickoff(match_id: str) -> datetime | None:
+    """The real scheduled kickoff of `match_id`, if the source provided one and the match is
+    still present in its competition's current snapshot (it drops out once actually played)."""
+    found = find_match_by_id(match_id)
+    if found is None:
+        return None
+    _source, match = found
+    if not match.kickoff_at:
+        return None
+    try:
+        return _parse_timestamp(match.kickoff_at)
+    except ValueError:
+        return None
 
 
 def _debit_beths(account_id: str, amount: float) -> None:
@@ -126,6 +141,9 @@ def _resolve_selection(raw: dict[str, Any]) -> tuple[MockMatch, str, float, str]
     if not is_open_for_betting(match.status):
         raise ConflictError(f"match is no longer open for betting: {match_id}")
 
+    if outcome == "empate" and not can_draw(match_id):
+        raise ValueError(f"this match cannot end in a draw: {match_id}")
+
     odds = generate_match_odds(match_id)
     outcome_odds = {
         "local": odds.home_odds,
@@ -140,6 +158,14 @@ def _serialize_selection(selection: PlacedBetSelection, *, settled: bool) -> dic
     # it earlier would leak an outcome that, in-fiction, "hasn't happened yet" even though
     # `generate_match_result` is a pure deterministic function under the hood.
     result = generate_match_result(selection.match_id) if settled else None
+    # Only meaningful while pending: once settled the match is done, whatever its last-synced
+    # status says. `None` when the match already dropped out of its competition's snapshot.
+    match_status = None
+    if not settled:
+        found = find_match_by_id(selection.match_id)
+        if found is not None:
+            _source, live_match = found
+            match_status = live_match.status
     return {
         "matchId": selection.match_id,
         "matchLabel": selection.match_label,
@@ -147,6 +173,7 @@ def _serialize_selection(selection: PlacedBetSelection, *, settled: bool) -> dic
         "odds": selection.odds,
         "result": result,
         "won": (result == selection.outcome) if settled else None,
+        "matchStatus": match_status,
     }
 
 
@@ -260,10 +287,16 @@ def place_bet(
 
 
 def _settle_due_bets(account_id: str) -> None:
-    """Lazily settle every pending bet of this account whose match is old enough to be
-    considered finished (`created_at + SETTLEMENT_DELAY_MINUTES`), against a deterministic
-    simulated result — no real match result exists anywhere in this prototype (see
-    `specs/006-elo/research.md` Decisions 8 and 9).
+    """Lazily settle every pending bet of this account whose match(es) are old enough to be
+    considered finished, against a deterministic simulated result — no real match result exists
+    anywhere in this prototype (see `specs/006-elo/research.md` Decisions 8 and 9).
+
+    "Old enough" is measured from each selection's real scheduled kickoff (`MockMatch.kickoff_at`)
+    plus `SETTLEMENT_DELAY_MINUTES`, not from when the bet was *placed* - a bet placed at 13:00 on
+    a match kicking off at 17:15 must not settle at 14:30, no matter how long ago it was placed.
+    Falls back to `created_at` only when the match's real kickoff is unknown (source didn't
+    provide one, or the match already dropped out of its competition's snapshot because it was
+    actually played) - a strictly weaker guarantee, but the best available without that data.
     """
     now = datetime.now(timezone.utc)
     with get_connection() as connection:
@@ -273,10 +306,13 @@ def _settle_due_bets(account_id: str) -> None:
         ).fetchall()
 
     for row in rows:
-        if now < _parse_timestamp(row["created_at"]) + timedelta(minutes=SETTLEMENT_DELAY_MINUTES):
+        selections = loads(row["selections_json"])
+        kickoffs = [_match_kickoff(selection["match_id"]) for selection in selections]
+        known_kickoffs = [kickoff for kickoff in kickoffs if kickoff is not None]
+        reference = max(known_kickoffs) if known_kickoffs else _parse_timestamp(row["created_at"])
+        if now < reference + timedelta(minutes=SETTLEMENT_DELAY_MINUTES):
             continue
 
-        selections = loads(row["selections_json"])
         won = all(generate_match_result(selection["match_id"]) == selection["outcome"] for selection in selections)
         settled_at = now.isoformat()
         new_status = "ganada" if won else "perdida"

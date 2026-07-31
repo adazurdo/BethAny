@@ -98,6 +98,29 @@ Como usuario, quiero recibir una cantidad de Beths la primera vez que mi ELO cru
 3. **Given** una resolución de predicción que hace que el ELO de un usuario cruce varios hitos a la vez (una subida grande), **When** se procesa, **Then** recibe la recompensa correspondiente a cada hito cruzado.
 4. **Given** una recompensa de hito recién concedida y aún no vista por el usuario, **When** abre su perfil, **Then** ve un aviso indicando el hito alcanzado y la recompensa recibida, y ese aviso deja de mostrarse después de verlo una vez.
 
+---
+
+### User Story 5 - Elijo cuánto ELO quiero ganar entre las opciones posibles, no escribo un importe de Beths (Priority: P2)
+
+Como usuario, quiero un control simple en el boleto de apuestas -el ELO actual en el centro y un botón "−" y un botón "+" a los lados- para subir o bajar, uno a uno, entre los valores de ELO que realmente puedo ganar según mi saldo actual, en vez de escribir un importe de Beths o elegir entre una pared de botones — porque las Beths son solo la moneda que se cobra para lograrlo, no lo que me importa decidir, y porque tanto un campo de texto libre como una grilla larga de opciones son más ruido del necesario para una decisión que en el fondo es "un poco más o un poco menos" (ver Revisión 2026-07-31 más abajo).
+
+**Why this priority**: Es un cambio de interfaz sobre la fórmula ya existente (User Story 1/FR-001/FR-002b), no una fórmula nueva; depende de que esa fórmula ya exista pero no bloquea ninguna otra historia, por eso es P2.
+
+**Revisión 2026-07-31 (primer intento)**: la primera versión de esta historia usaba un campo de texto libre para el ELO objetivo. Se descartó porque el multiplicador de confianza de la fórmula (FR-002b) está acotado a un rango fijo (`[0.8, 1.5]`), por lo que para una cuota dada existe un ELO mínimo y máximo alcanzable **sin importar cuánto se apueste** por debajo o por encima de cierto punto — cualquier ELO objetivo por debajo del mínimo (ej. pedir 1 o pedir 2 cuando el mínimo real es 13) colapsaba silenciosamente en el mismo importe mínimo de Beths, lo que se percibía como un error.
+
+**Revisión 2026-07-31 (segundo intento)**: se reemplazó el campo de texto por un botón por cada valor de ELO alcanzable (una grilla). Resolvía el problema anterior (ningún valor mostrado es inalcanzable), pero el usuario prefirió una interfaz más simple: un único valor visible con dos botones "más/menos" para moverse entre las mismas opciones alcanzables, un paso a la vez, en vez de ver todas las opciones a la vez.
+
+**Independent Test**: Puede probarse abriendo el boleto con una selección cargada, comprobando que aparece un valor de ELO inicial (el mínimo alcanzable) con sus dos botones, que "+" avanza al siguiente valor alcanzable y "−" retrocede al anterior, que cada valor tiene un importe de Beths distinto, y que los botones se deshabilitan en los extremos del rango.
+
+**Acceptance Scenarios**:
+
+1. **Given** una selección con una cuota conocida y un saldo de Beths conocido, **When** se abre el boleto para esa selección sin ninguna elección previa, **Then** se muestra automáticamente el valor de ELO mínimo alcanzable con ese saldo y esa cuota, con un botón "−" y un botón "+".
+2. **Given** el valor de ELO mostrado, **When** el usuario pulsa "+", **Then** el valor avanza al siguiente ELO alcanzable (con su importe de Beths correspondiente); **When** pulsa "−", **Then** retrocede al anterior.
+3. **Given** el valor de ELO en su mínimo alcanzable, **When** se muestra el control, **Then** el botón "−" aparece deshabilitado; **Given** el valor en su máximo alcanzable, **Then** el botón "+" aparece deshabilitado.
+4. **Given** un valor de ELO mostrado, **When** se muestra el resultado, **Then** también se muestra el ELO que se perdería si la apuesta falla, calculado con la misma fórmula del servidor (User Story 1) para las Beths de ese valor.
+5. **Given** dos valores consecutivos del control, **When** se comparan sus importes de Beths, **Then** son siempre importes distintos entre sí (nunca dos pasos del control piden la misma cantidad de Beths).
+6. **Given** una cuenta sin Beths suficientes para ninguna apuesta, **When** abre el boleto, **Then** se le indica que no tiene saldo suficiente en vez de mostrar el control.
+
 ### Edge Cases
 
 - ¿Qué pasa si una cuenta apuesta con cuotas muy extremas (casi 1.0, o muy altas)? La probabilidad implícita usada por la fórmula se acota a `[0.05, 0.95]`, así que ninguna apuesta puede dar o costar una cantidad ilimitada de ELO por una cuota extrema.
@@ -127,6 +150,10 @@ Como usuario, quiero recibir una cantidad de Beths la primera vez que mi ELO cru
 - **FR-012**: El sistema MUST NOT conceder una segunda recompensa por el mismo hito de ELO si la cuenta baja por debajo de él y vuelve a superarlo sin alcanzar un hito nuevo.
 - **FR-013**: El sistema MUST permitir a una cuenta consultar sus recompensas de hito de ELO aún no vistas y marcarlas como vistas.
 - **FR-014**: El sistema MUST ignorar cualquier valor de ELO o de saldo de Beths que llegue en una actualización de perfil iniciada por el usuario, conservando siempre el valor calculado por el propio sistema.
+- **FR-015**: El boleto de apuestas MUST ofrecer, para cada seleccion, un control de un unico valor de ELO visible a la vez con dos botones ("subir"/"bajar") para moverse entre los valores enteros de ELO efectivamente alcanzables (segun la formula de FR-001/FR-002b) entre el minimo y el maximo que permite el saldo de Beths disponible de la cuenta y la cuota de esa seleccion, en vez de un campo de texto libre o una lista de botones simultaneos.
+- **FR-016**: El sistema MUST calcular, para el valor de ELO mostrado en cada momento, el importe minimo de Beths que produce exactamente ese ELO al acertar, y fijarlo como dato de solo lectura, junto con el ELO que se perderia si la apuesta falla.
+- **FR-017**: El sistema MUST garantizar que, entre los valores consecutivos que el control permite alcanzar para una misma seleccion, no haya dos que requieran el mismo importe de Beths (colapsar valores de ELO que resultarian en el mismo importe en un unico paso, en vez de dos pasos identicos).
+- **FR-018**: El control de ELO del boleto MUST inicializarse en el valor minimo alcanzable la primera vez que se agrega una seleccion (antes de que el usuario pulse nada), y MUST deshabilitar el boton de bajar en el valor minimo y el boton de subir en el valor maximo.
 
 ### Key Entities *(include if feature involves data)*
 
@@ -151,6 +178,7 @@ Como usuario, quiero recibir una cantidad de Beths la primera vez que mi ELO cru
 - La renta periódica, el tope diario de apuestas que cuentan para ELO, el tope de Beths por apuesta y los importes de recompensa por hito son cantidades fijas configurables por el equipo de producto, no ajustables por el usuario.
 - El estado "provisional" de una cuenta con pocas apuestas liquidadas (ver `research.md`) es una bandera de presentación para un futuro ranking global visible; esta spec no implementa esa superficie de ranking en sí, solo deja el dato (`elo_bets_settled`) disponible para calcularla.
 - La vista previa de ELO en el boleto de apuestas (cuánto ganaría o perdería de ELO antes de confirmar) es una reimplementación en el cliente de la misma fórmula del servidor, no una llamada nueva a la API; no cambia ningún comportamiento del backend, solo lo anticipa visualmente (ver `research.md`, Revisión 2026-07-17 continuación).
+- Ampliado (2026-07-31, User Story 5): el boleto ya no tiene ningún campo de texto editable para el importe ni para el ELO, ni una lista de botones simultáneos; el usuario sube/baja de a un valor con un control "−"/"+". El importe de Beths que efectivamente se envía al backend al confirmar sigue siendo exactamente el mismo campo `stake` de siempre (FR-007), solo que ahora se deriva en el cliente invirtiendo la misma fórmula del servidor a partir del valor de ELO seleccionado, en vez de ser tecleado directamente. El contrato del backend (`POST /bets/place`) no cambió.
 - El resultado simulado de partido introducido por esta spec (ver Clarifications) es una simplificación explícita del prototipo mientras no exista una fuente real de resultados finales; puede sustituirse por datos reales en una spec futura sin cambiar el resto de este diseño (el saldo de Beths y su liquidación no dependen de cómo se obtenga el resultado, solo de que exista uno).
 - El ranking global de la app (hoy con datos de ejemplo, sin conexión con el backend) queda fuera de alcance de esta spec; solo se ven afectados el ELO por cuenta y el ranking ya existente dentro de cada grupo.
 - TDD sigue diferido, igual que en el resto del proyecto.

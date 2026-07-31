@@ -48,6 +48,7 @@ def _row_to_source(row) -> CompetitionSource:
         sync_status=row["sync_status"],
         last_synced_at=row["last_synced_at"],
         last_error=row["last_error"],
+        icon_url=row["icon_url"],
     )
 
 
@@ -63,6 +64,14 @@ def get_competition_source(code: str) -> CompetitionSource | None:
     with get_connection() as connection:
         row = fetch_one(connection, "SELECT * FROM competition_sources WHERE code = ?", (code,))
     return _row_to_source(row) if row else None
+
+
+def update_competition_icon(code: str, icon_url: str) -> None:
+    """Best-effort: persists the real per-competition emblem (football-data.org only)."""
+    initialize_repository()
+    with get_connection() as connection:
+        connection.execute("UPDATE competition_sources SET icon_url = ? WHERE code = ?", (icon_url, code))
+        connection.commit()
 
 
 def get_snapshot(code: str) -> MockDatasetSnapshot | None:

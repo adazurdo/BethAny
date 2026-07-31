@@ -9,6 +9,9 @@ export type PlacedBetSelection = {
   odds: number;
   result: BetOutcome | null;
   won: boolean | null;
+  // Only populated while the bet is still pending (null once settled, or if the match already
+  // dropped out of its competition's synced snapshot).
+  matchStatus: string | null;
 };
 
 export type PlacedBet = {

@@ -277,6 +277,18 @@ class MockMatch:
     away_team_name: str
     kickoff_label: str
     status: str = "scheduled"
+    # Raw ISO timestamp the kickoff_label is formatted from ("" if the source didn't provide
+    # one) - kept separately because settlement (bet_repository) needs to compare it against
+    # "now", which a human-formatted label can't do.
+    kickoff_at: str = ""
+    # Non-null only for knockout/elimination stages (see mock_dataset.py) so the UI can call
+    # out playoffs/finals; null means regular season / group stage, nothing special to show.
+    stage_label: str | None = None
+    # PandaScore-only: the specific league within a videogame (e.g. "LEC", "LCK", "LPL") so the
+    # UI can group esports matches by league. Null for football-data.org matches, whose
+    # CompetitionSource already IS a single league (LaLiga, Champions...).
+    league_name: str | None = None
+    league_image_url: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -294,6 +306,9 @@ class CompetitionSource:
     sync_status: str = "never_synced"
     last_synced_at: str | None = None
     last_error: str | None = None
+    # Real per-competition emblem (football-data.org's `emblem`). Esports game icons are static
+    # assets the frontend renders directly, so this stays null for `pandascore` sources.
+    icon_url: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

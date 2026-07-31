@@ -3,6 +3,7 @@ import { StyleSheet, Text, View, Animated, Pressable } from "react-native";
 import { accentForKey, colors, radii, spacing, shadows } from "../theme";
 import { useBetSlip } from "./BetSlipContext";
 import { BetOutcome } from "../data/bets";
+import { isMatchLive, isMatchOpen } from "../data/matchStatus";
 import { Icon } from "./Icon";
 import { TeamBadge } from "./TeamBadge";
 
@@ -17,6 +18,8 @@ type MatchOdds = {
   drawOdds: number;
   awayOdds: number;
   status: string;
+  // Non-null only for knockout/elimination stages (playoffs, cuartos, semifinal, final...).
+  stageLabel?: string | null;
 };
 
 type EventCardProps = {
@@ -30,7 +33,7 @@ type EventCardProps = {
   match: MatchOdds;
 };
 
-const OUTCOME_LABELS: Record<BetOutcome, string> = {
+const FALLBACK_OUTCOME_LABELS: Record<BetOutcome, string> = {
   local: "Local",
   empate: "Empate",
   visitante: "Visitante",
@@ -46,9 +49,8 @@ export function EventCard({ title, sport, league, startLabel, featured, homeTeam
   const { addSelection, isSelected } = useBetSlip();
 
   const scale = new Animated.Value(1);
-  // Mirrors backend/bethany_mock/odds.py's OPEN_FOR_BETTING_STATUSES: football-data.org's
-  // "scheduled"/"timed" and PandaScore's "not_started" all mean "not yet played".
-  const isOpenForBetting = ["scheduled", "timed", "not_started"].includes(match.status.toLowerCase());
+  const isOpenForBetting = isMatchOpen(match.status);
+  const isLive = isMatchLive(match.status);
 
   // "Flies" a small copy of the tapped odd up and away, toward where the
   // boleto lives (the desktop right rail, or the mobile "Ver boleto" access
@@ -94,19 +96,43 @@ export function EventCard({ title, sport, league, startLabel, featured, homeTeam
 
   const sportAccent = accentForKey(sport);
 
+  const outcomeLabels: Record<BetOutcome, string> = {
+    local: homeTeam?.name ?? FALLBACK_OUTCOME_LABELS.local,
+    empate: FALLBACK_OUTCOME_LABELS.empate,
+    visitante: awayTeam?.name ?? FALLBACK_OUTCOME_LABELS.visitante,
+  };
+
+  // Esports matches (best-of series) never end in a draw - only football-style sports offer it.
+  const canDraw = sport !== "Esports";
+  const visibleOutcomes: BetOutcome[] = canDraw ? ["local", "empate", "visitante"] : ["local", "visitante"];
+
   return (
     <View style={[styles.card, { borderBottomColor: sportAccent }, featured ? styles.featured : undefined]}>
       <View style={styles.topRow}>
         <View style={[styles.badge, { backgroundColor: sportAccent }]}>
           <Text style={styles.badgeText}>{sport}</Text>
         </View>
-        {featured ? (
-          <View style={styles.liveChip}>
-            <Icon glyph="fire" size={12} color={colors.warning} />
-            <Text style={styles.liveChipText}>DESTACADO</Text>
-          </View>
-        ) : null}
+        <View style={styles.topRowChips}>
+          {isLive ? (
+            <View style={styles.liveNowChip}>
+              <View style={styles.liveNowDot} />
+              <Text style={styles.liveNowChipText}>EN VIVO</Text>
+            </View>
+          ) : null}
+          {featured ? (
+            <View style={styles.liveChip}>
+              <Icon glyph="fire" size={12} color={colors.warning} />
+              <Text style={styles.liveChipText}>DESTACADO</Text>
+            </View>
+          ) : null}
+        </View>
       </View>
+      {match.stageLabel ? (
+        <View style={styles.stageChip}>
+          <Icon glyph="swords" size={12} color={colors.danger} />
+          <Text style={styles.stageChipText}>{match.stageLabel.toUpperCase()}</Text>
+        </View>
+      ) : null}
       {homeTeam && awayTeam ? (
         <View style={styles.matchupRow}>
           <View style={styles.teamColumn}>
@@ -132,7 +158,7 @@ export function EventCard({ title, sport, league, startLabel, featured, homeTeam
       </View>
 
       <Animated.View style={[styles.outcomesRow, { transform: [{ scale }] }]}>
-        {(["local", "empate", "visitante"] as BetOutcome[]).map((outcome) => {
+        {visibleOutcomes.map((outcome) => {
           const selected = isSelected(match.matchId, outcome);
           const odds = match[OUTCOME_ODDS_KEYS[outcome]] as number;
           return (
@@ -154,7 +180,9 @@ export function EventCard({ title, sport, league, startLabel, featured, homeTeam
                   <Icon glyph="check" size={12} color={colors.background} />
                 </View>
               ) : null}
-              <Text style={[styles.outcomeLabel, selected ? styles.outcomeLabelSelected : null]}>{OUTCOME_LABELS[outcome]}</Text>
+              <Text style={[styles.outcomeLabel, selected ? styles.outcomeLabelSelected : null]} numberOfLines={1} ellipsizeMode="tail">
+                {outcomeLabels[outcome]}
+              </Text>
               <Text style={[styles.outcomeOdds, selected ? styles.outcomeLabelSelected : null]}>{isOpenForBetting ? odds.toFixed(2) : "—"}</Text>
             </Pressable>
           );
@@ -230,6 +258,11 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     letterSpacing: 0.2,
   },
+  topRowChips: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+  },
   liveChip: {
     flexDirection: "row",
     alignItems: "center",
@@ -239,6 +272,46 @@ const styles = StyleSheet.create({
     color: colors.warning,
     fontSize: 11,
     fontWeight: "900",
+  },
+  liveNowChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: radii.pill,
+    backgroundColor: "rgba(244,80,109,0.15)",
+  },
+  liveNowDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.danger,
+  },
+  liveNowChipText: {
+    color: colors.danger,
+    fontSize: 11,
+    fontWeight: "900",
+    letterSpacing: 0.3,
+  },
+  stageChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: 4,
+    marginBottom: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.danger,
+    backgroundColor: "rgba(244,80,109,0.12)",
+  },
+  stageChipText: {
+    color: colors.danger,
+    fontSize: 11,
+    fontWeight: "900",
+    letterSpacing: 0.3,
   },
   title: {
     color: colors.text,

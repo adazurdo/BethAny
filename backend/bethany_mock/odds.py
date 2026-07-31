@@ -31,6 +31,16 @@ def seed_for(match_id: str, salt: str = "") -> int:
     return int(digest[:16], 16)
 
 
+def can_draw(match_id: str) -> bool:
+    """Whether a draw is a possible outcome for this match at all.
+
+    Esports matches (`mock_dataset.normalize_esports_matches` always ids them
+    "esports-match-{id}") are best-of series - they always produce a winner, never a draw.
+    Football matches ("match-{id}") can.
+    """
+    return not match_id.startswith("esports-match-")
+
+
 def match_probabilities(match_id: str) -> tuple[float, float, float]:
     """Derive stable (home, draw, away) win probabilities purely from `match_id`.
 
@@ -44,6 +54,13 @@ def match_probabilities(match_id: str) -> tuple[float, float, float]:
     home_strength = rng.uniform(0.30, 0.55)
     draw_strength = rng.uniform(0.20, 0.28)
     away_strength = max(0.15, 1.0 - home_strength - draw_strength)
+
+    if not can_draw(match_id):
+        # Redistribute the draw weight into home/away (keeping their relative ratio) instead of
+        # just zeroing it out unnormalized, so the two remaining probabilities still sum to 1.
+        total = home_strength + away_strength
+        return home_strength / total, 0.0, away_strength / total
+
     total = home_strength + draw_strength + away_strength
     return home_strength / total, draw_strength / total, away_strength / total
 
@@ -65,7 +82,9 @@ def generate_match_odds(match_id: str) -> MatchOdds:
     return MatchOdds(
         match_id=match_id,
         home_odds=to_odds(home_p),
-        draw_odds=to_odds(draw_p),
+        # 0 (never a real odds value) signals "not offered" for matches that can't draw,
+        # instead of dividing by the zero probability from match_probabilities above.
+        draw_odds=to_odds(draw_p) if draw_p > 0 else 0.0,
         away_odds=to_odds(away_p),
     )
 

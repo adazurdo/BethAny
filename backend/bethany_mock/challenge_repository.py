@@ -10,7 +10,7 @@ from .database import dumps, get_connection, initialize_database, loads
 from .match_results import generate_match_result
 from .mock_dataset_repository import find_match_by_id
 from .models import FriendChallenge, MockMatch
-from .odds import is_open_for_betting
+from .odds import can_draw, is_open_for_betting
 from .social_repository import ConflictError, is_friend
 
 
@@ -19,10 +19,25 @@ def _utcnow() -> str:
 
 
 def _parse_timestamp(value: str) -> datetime:
-    parsed = datetime.fromisoformat(value)
+    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
     if parsed.tzinfo is None:
         parsed = parsed.replace(tzinfo=timezone.utc)
     return parsed
+
+
+def _match_kickoff(match_id: str) -> datetime | None:
+    """The real scheduled kickoff of `match_id`, if the source provided one and the match is
+    still present in its competition's current snapshot (it drops out once actually played)."""
+    found = find_match_by_id(match_id)
+    if found is None:
+        return None
+    _source, match = found
+    if not match.kickoff_at:
+        return None
+    try:
+        return _parse_timestamp(match.kickoff_at)
+    except ValueError:
+        return None
 
 
 def _new_id(prefix: str) -> str:
@@ -147,6 +162,8 @@ def create_match_challenge(
     _source, match = found
     if not is_open_for_betting(match.status):
         raise ConflictError(f"match is no longer open for betting: {match_id}")
+    if outcome == "empate" and not can_draw(match_id):
+        raise ValueError(f"this match cannot end in a draw: {match_id}")
 
     challenge = FriendChallenge(
         id=_new_id("challenge"),
@@ -315,7 +332,9 @@ def _settle_due_challenges(account_id: str) -> None:
 
     for row in rows:
         challenge = _row_to_challenge(row)
-        if now < _parse_timestamp(challenge.created_at) + timedelta(minutes=SETTLEMENT_DELAY_MINUTES):
+        kickoff = _match_kickoff(challenge.match_id)
+        reference = kickoff if kickoff is not None else _parse_timestamp(challenge.created_at)
+        if now < reference + timedelta(minutes=SETTLEMENT_DELAY_MINUTES):
             continue
 
         result = generate_match_result(challenge.match_id)

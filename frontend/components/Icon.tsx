@@ -44,6 +44,10 @@ const iconMap = {
   settings: "settings-outline",
   logout: "log-out-outline",
   shield: "shield-outline",
+  football: "football-outline",
+  esports: "game-controller-outline",
+  search: "search-outline",
+  chevronDown: "chevron-down-outline",
 } as const;
 
 type IconName = keyof typeof iconMap;
