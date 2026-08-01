@@ -13,6 +13,13 @@ processes: dict[str, subprocess.Popen[str]] = {}
 events: Queue[tuple[str, int]] = Queue()
 
 
+def _backend_python() -> str:
+    venv_python = ROOT_DIR / "backend" / ".venv" / "bin" / "python"
+    if venv_python.exists():
+        return str(venv_python)
+    return sys.executable
+
+
 def _monitor_process(name: str, process: subprocess.Popen[str]) -> None:
     exit_code = process.wait()
     events.put((name, exit_code))
@@ -40,7 +47,7 @@ def main() -> int:
     signal.signal(signal.SIGTERM, _handle_signal)
 
     backend = subprocess.Popen(
-        [sys.executable, str(ROOT_DIR / "backend" / "scripts" / "run_local_api.py")],
+        [_backend_python(), str(ROOT_DIR / "backend" / "scripts" / "run_local_api.py")],
         cwd=str(ROOT_DIR),
     )
     npm_executable = shutil.which("npm")
