@@ -51,12 +51,11 @@ function EloPreviewRow({ preview, countsToday }: { preview: EloPreview | null; c
   );
 }
 
-// One value at a time instead of a wall of buttons: the current Elo target sits in the middle,
-// "−"/"+" step to the previous/next value actually reachable with the account's current Beths
-// for this odds (never a free-text field, so it's never possible to land on an unreachable
-// value). Auto-picks the lowest option the first time there's nothing selected yet, so there's
-// always a valid value showing instead of an empty state.
-function EloStepper({ options, selectedStake, onPick }: { options: QuickStakeOption[]; selectedStake: string; onPick: (stake: number) => void }) {
+// A handful of concrete, tappable Elo targets (see eloPreview.curatedEloOptions) instead of a
+// +/- stepper the player had to walk one step at a time to reach a far-off value. Auto-picks
+// the lowest option the first time there's nothing selected yet, so there's always a valid
+// value showing instead of an empty state.
+function EloOptionGrid({ options, selectedStake, onPick }: { options: QuickStakeOption[]; selectedStake: string; onPick: (stake: number) => void }) {
   const selected = Number(selectedStake);
   const hasSelection = options.some((o) => o.stake === selected);
 
@@ -69,35 +68,22 @@ function EloStepper({ options, selectedStake, onPick }: { options: QuickStakeOpt
   if (options.length === 0) {
     return <Text style={styles.eloRangeText}>No tienes Beths suficientes para apostar.</Text>;
   }
-  if (!hasSelection) return null;
-
-  const index = options.findIndex((o) => o.stake === selected);
-  const current = options[index];
-  const canDecrease = index > 0;
-  const canIncrease = index < options.length - 1;
 
   return (
-    <View style={styles.eloStepper}>
-      <Pressable
-        style={[styles.stepperButton, !canDecrease ? styles.stepperButtonDisabled : null]}
-        onPress={() => canDecrease && onPick(options[index - 1].stake)}
-        disabled={!canDecrease}
-        hitSlop={8}
-      >
-        <Text style={styles.stepperButtonText}>−</Text>
-      </Pressable>
-      <View style={styles.stepperCenter}>
-        <Text style={styles.stepperValue}>+{current.deltaIfWin} Elo</Text>
-        <Text style={styles.stepperSubtext}>{current.stake} B</Text>
-      </View>
-      <Pressable
-        style={[styles.stepperButton, !canIncrease ? styles.stepperButtonDisabled : null]}
-        onPress={() => canIncrease && onPick(options[index + 1].stake)}
-        disabled={!canIncrease}
-        hitSlop={8}
-      >
-        <Text style={styles.stepperButtonText}>+</Text>
-      </Pressable>
+    <View style={styles.eloChipGrid}>
+      {options.map((option) => {
+        const isSelected = option.stake === selected;
+        return (
+          <Pressable
+            key={`${option.deltaIfWin}-${option.stake}`}
+            style={[styles.eloChip, isSelected ? styles.eloChipSelected : null]}
+            onPress={() => onPick(option.stake)}
+          >
+            <Text style={[styles.eloChipValue, isSelected ? styles.eloChipValueSelected : null]}>+{option.deltaIfWin} Elo</Text>
+            <Text style={[styles.eloChipSubtext, isSelected ? styles.eloChipSubtextSelected : null]}>{option.stake} B</Text>
+          </Pressable>
+        );
+      })}
     </View>
   );
 }
@@ -157,7 +143,7 @@ function TicketRow({ selection, activeTab, stakeValue, onPickStake, onRemove, el
       {activeTab === "simple" ? (
         <>
           <Text style={styles.eloGridLabel}>Elige cuánto Elo quieres ganar</Text>
-          <EloStepper options={eloOptions} selectedStake={stakeValue} onPick={onPickStake} />
+          <EloOptionGrid options={eloOptions} selectedStake={stakeValue} onPick={onPickStake} />
           <StakeInfoRow stakeValue={stakeValue} odds={selection.odds} />
           <EloPreviewRow preview={eloPreview} countsToday={eloCountsToday} />
         </>
@@ -237,6 +223,7 @@ export function BetSlipPanel() {
       {activeTab === "combinada" ? (
         <Text style={styles.combinadaHint}>
           Con 2 o más selecciones solo puedes apostar al total de la combinada, no a cada parte por separado.
+          {selections.length >= 3 ? " Al confirmar, esta combinada puede desbloquear un Elo Boost de hasta el 20% sobre la cuota." : ""}
         </Text>
       ) : null}
 
@@ -263,7 +250,7 @@ export function BetSlipPanel() {
             <Text style={styles.ticketOdds}>{formatOdds(combinedOdds)}</Text>
           </View>
           <Text style={styles.eloGridLabel}>Elige cuánto Elo quieres ganar</Text>
-          <EloStepper
+          <EloOptionGrid
             options={eloOptions(combinedOdds)}
             selectedStake={combinadaStake}
             onPick={(stake) => setCombinadaStake(String(stake))}
@@ -376,46 +363,42 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.sm,
     marginTop: 4,
   },
-  eloStepper: {
+  eloChipGrid: {
     flexDirection: "row",
-    alignItems: "center",
+    flexWrap: "wrap",
     gap: spacing.sm,
     marginTop: 6,
   },
-  stepperButton: {
-    width: 36,
-    height: 36,
+  eloChip: {
+    flexBasis: "47%",
+    flexGrow: 1,
     borderRadius: radii.sm,
     borderWidth: 1.5,
-    borderColor: colors.primary,
+    borderColor: colors.border,
     backgroundColor: colors.background,
     alignItems: "center",
-    justifyContent: "center",
+    paddingVertical: 10,
   },
-  stepperButtonDisabled: {
-    borderColor: colors.border,
-    opacity: 0.4,
+  eloChipSelected: {
+    borderColor: colors.primary,
+    ...shadows.selected,
   },
-  stepperButtonText: {
-    color: colors.primary,
+  eloChipValue: {
+    color: colors.text,
     fontWeight: "900",
-    fontSize: 20,
-    lineHeight: 22,
+    fontSize: fontSizes.md,
   },
-  stepperCenter: {
-    flex: 1,
-    alignItems: "center",
-  },
-  stepperValue: {
+  eloChipValueSelected: {
     color: colors.primary,
-    fontWeight: "900",
-    fontSize: fontSizes.lg,
   },
-  stepperSubtext: {
+  eloChipSubtext: {
     color: colors.muted,
     fontSize: fontSizes.sm,
     fontWeight: "700",
     marginTop: 1,
+  },
+  eloChipSubtextSelected: {
+    color: colors.accent,
   },
   stakeInfoRow: {
     flexDirection: "row",

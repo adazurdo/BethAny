@@ -116,8 +116,10 @@ export function stakeForTargetElo(gamesPlayed: number, odds: number, targetEloGa
   const denom = k * (1 - p);
   const targetMultiplier = clamp(targetEloGain / denom, STAKE_MULT_MIN, STAKE_MULT_MAX);
   const rawStake = Math.pow(10, (targetMultiplier - 0.45) / 0.35);
-  // Round up to the cent so the resulting stake never undershoots the requested Elo.
-  const roundedUpStake = Math.ceil(rawStake * 100) / 100;
+  // Beths is a whole-number currency, so round up to the nearest whole Beth (never a decimal)
+  // - this also keeps the displayed stake honest, since the backend rounds to the nearest
+  // Beth at debit time either way (see bet_repository._debit_beths).
+  const roundedUpStake = Math.ceil(rawStake);
   const stake = clamp(roundedUpStake, MIN_STAKE, Math.min(maxBeths, MAX_ELO_STAKE));
   const m = stakeMultiplier(stake);
   return {
@@ -145,4 +147,22 @@ export function allAchievableEloOptions(gamesPlayed: number, odds: number, maxBe
     options.push({ stake: result.stake, deltaIfWin: result.deltaIfWin });
   }
   return options;
+}
+
+// A handful of concrete, evenly-spread picks across the full achievable range (see
+// allAchievableEloOptions) - e.g. "Conservador/Equilibrado/Arriesgado/Máximo" - so the bet
+// slip can show a few tappable buttons instead of a +/- stepper the player has to walk one
+// step at a time to reach a far-off value.
+export function curatedEloOptions(gamesPlayed: number, odds: number, maxBeths: number, count = 4): QuickStakeOption[] {
+  const all = allAchievableEloOptions(gamesPlayed, odds, maxBeths);
+  if (all.length <= count) return all;
+  const picked: QuickStakeOption[] = [];
+  for (let i = 0; i < count; i += 1) {
+    const index = Math.round((i * (all.length - 1)) / (count - 1));
+    const candidate = all[index];
+    if (picked.length === 0 || picked[picked.length - 1].deltaIfWin !== candidate.deltaIfWin) {
+      picked.push(candidate);
+    }
+  }
+  return picked;
 }
