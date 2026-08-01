@@ -4,7 +4,7 @@
   "scripts": {
     "start": "npm --prefix frontend start",
     "api": "python backend/scripts/run_local_api.py",
-    "dev": "python3 scripts/dev_local.py"
+    "dev": "python scripts/dev_local.py"
   },
   "dependencies": {
     "@expo-google-fonts/inter": "^0.4.2",

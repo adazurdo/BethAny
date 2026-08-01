@@ -14,9 +14,10 @@ events: Queue[tuple[str, int]] = Queue()
 
 
 def _backend_python() -> str:
-    venv_python = ROOT_DIR / "backend" / ".venv" / "bin" / "python"
-    if venv_python.exists():
-        return str(venv_python)
+    venv_dir = ROOT_DIR / "backend" / ".venv"
+    for candidate in (venv_dir / "bin" / "python", venv_dir / "Scripts" / "python.exe"):
+        if candidate.exists():
+            return str(candidate)
     return sys.executable
 
 
