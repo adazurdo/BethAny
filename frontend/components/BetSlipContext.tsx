@@ -1,8 +1,9 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { useAuth } from "./AuthContext";
 import type { BetSelection } from "../data/auth";
-import { BetOutcome, placeCombinadaBet, placeSimpleBets } from "../data/bets";
-import { allAchievableEloOptions, eloBetsRemainingToday, EloPreview, MAX_ELO_STAKE, previewEloDelta, QuickStakeOption } from "../data/eloPreview";
+import { BetOutcome, PlacedBet, placeCombinadaBet, placeSimpleBets } from "../data/bets";
+import { curatedEloOptions, eloBetsRemainingToday, EloPreview, MAX_ELO_STAKE, previewEloDelta, QuickStakeOption } from "../data/eloPreview";
+import { EloBoostRevealModal } from "./EloBoostRevealModal";
 
 type Selection = {
   id: string;
@@ -42,7 +43,8 @@ type BetSlipContextValue = {
   placeCombinada: () => Promise<boolean>;
   eloPreview: (odds: number, stakeRaw: string) => EloPreview | null;
   eloRemainingToday: number;
-  // Every Elo-on-win value actually reachable with the account's current Beths for a given
+  // A handful of concrete Elo-on-win picks (Conservador/Equilibrado/Arriesgado/Máximo) spread
+  // across the full range actually reachable with the account's current Beths for a given
   // odds - the bet slip only offers these as buttons, it never lets the player type a Beths
   // amount (or an Elo target) freely.
   eloOptions: (odds: number) => QuickStakeOption[];
@@ -77,6 +79,10 @@ export function BetSlipProvider({ children }: { children: React.ReactNode }) {
   const [combinadaStake, setCombinadaStake] = useState("");
   const [placing, setPlacing] = useState(false);
   const [placeError, setPlaceError] = useState<string | null>(null);
+  // Set once a just-placed combinada came back with an Elo boost, so EloBoostRevealModal can
+  // animate/reveal it. The bet is already confirmed and non-editable by this point (FR: the
+  // boost only ever shows after confirmation).
+  const [boostReveal, setBoostReveal] = useState<PlacedBet | null>(null);
   const { account, updateAccount } = useAuth();
 
   useEffect(() => {
@@ -181,7 +187,7 @@ export function BetSlipProvider({ children }: { children: React.ReactNode }) {
     (odds: number): QuickStakeOption[] => {
       const profile = account?.profile;
       if (!profile) return [];
-      return allAchievableEloOptions(profile.eloBetsSettled, odds, maxAvailableBeths);
+      return curatedEloOptions(profile.eloBetsSettled, odds, maxAvailableBeths);
     },
     [account?.profile.eloBetsSettled, maxAvailableBeths]
   );
@@ -229,11 +235,15 @@ export function BetSlipProvider({ children }: { children: React.ReactNode }) {
     }
     setPlacing(true);
     try {
-      await placeCombinadaBet(
+      const placedBets = await placeCombinadaBet(
         selections.map((s) => ({ matchId: s.matchId, outcome: s.outcome })),
         stake
       );
       clear();
+      const placed = placedBets[0];
+      if (placed && placed.eloBoostPercent != null) {
+        setBoostReveal(placed);
+      }
       return true;
     } catch (err) {
       setPlaceError(describePlaceError(err));
@@ -268,6 +278,7 @@ export function BetSlipProvider({ children }: { children: React.ReactNode }) {
       }}
     >
       {children}
+      <EloBoostRevealModal bet={boostReveal} onClose={() => setBoostReveal(null)} />
     </BetSlipContext.Provider>
   );
 }

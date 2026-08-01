@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from . import elo
+from . import combinada_boost, elo
 from .account_repository import get_account_by_id, save_account_state
 from .database import dumps, get_connection, initialize_database, loads
 from .match_results import resolve_match_result
@@ -196,6 +196,8 @@ def serialize_placed_bet(bet: PlacedBet) -> dict[str, Any]:
         "createdAt": bet.created_at,
         "settledAt": bet.settled_at,
         "eloDelta": bet.elo_delta,
+        "eloBoostPercent": bet.elo_boost_percent,
+        "boostedOdds": bet.boosted_odds,
         "selections": [_serialize_selection(selection, settled=settled) for selection in bet.selections],
     }
 
@@ -206,22 +208,34 @@ def _persist(
     stake: float,
     combined_odds: float,
     selections: list[PlacedBetSelection],
+    *,
+    elo_boost_percent: float | None = None,
+    boosted_odds: float | None = None,
 ) -> PlacedBet:
+    # The boost, when present, only inflates the payout basis - `combined_odds` itself always
+    # stays the true, unboosted sum (Elo settlement math depends on that, see
+    # _apply_elo_for_settlement).
+    payout_odds = boosted_odds if boosted_odds is not None else combined_odds
     bet = PlacedBet(
         id=_new_id("bet"),
         account_id=account_id,
         bet_type=bet_type,
         stake=stake,
         combined_odds=round(combined_odds, 2),
-        potential_winnings=round(stake * combined_odds, 2),
+        potential_winnings=round(stake * payout_odds, 2),
         created_at=_utcnow(),
         selections=selections,
+        elo_boost_percent=elo_boost_percent,
+        boosted_odds=round(boosted_odds, 2) if boosted_odds is not None else None,
     )
     with get_connection() as connection:
         connection.execute(
             """
-            INSERT INTO placed_bets (id, account_id, bet_type, stake, combined_odds, potential_winnings, selections_json, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO placed_bets (
+                id, account_id, bet_type, stake, combined_odds, potential_winnings,
+                selections_json, created_at, elo_boost_percent, boosted_odds
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 bet.id,
@@ -232,6 +246,8 @@ def _persist(
                 bet.potential_winnings,
                 dumps([selection.to_dict() for selection in bet.selections]),
                 bet.created_at,
+                bet.elo_boost_percent,
+                bet.boosted_odds,
             ),
         )
         connection.commit()
@@ -274,8 +290,26 @@ def place_bet(
             placed_selections.append(
                 PlacedBetSelection(match_id=match.id, match_label=label, outcome=outcome, odds=odds)
             )
+
+        # "Elo boost": rolled here (server-authoritative, never trusted from the client) so a
+        # combinada with 3+ distinct matches gets a random 2-20% payout bonus. Applied only to
+        # the payout basis passed into `_persist`, never to `combined_odds` itself.
+        elo_boost_percent: float | None = None
+        boosted_odds: float | None = None
+        if combinada_boost.is_eligible(len(resolved)):
+            elo_boost_percent = combinada_boost.roll_boost_percent()
+            boosted_odds = combined_odds * (1 + elo_boost_percent / 100)
+
         _debit_beths(account_id, shared_stake)
-        bet = _persist(account_id, "combinada", shared_stake, combined_odds, placed_selections)
+        bet = _persist(
+            account_id,
+            "combinada",
+            shared_stake,
+            combined_odds,
+            placed_selections,
+            elo_boost_percent=elo_boost_percent,
+            boosted_odds=boosted_odds,
+        )
         return [serialize_placed_bet(bet)]
 
     # simple: one independent PlacedBet per selection, each with its own stake.
@@ -369,6 +403,8 @@ def list_placed_bets(account_id: str) -> list[dict[str, Any]]:
             status=row["status"],
             settled_at=row["settled_at"],
             elo_delta=row["elo_delta"],
+            elo_boost_percent=row["elo_boost_percent"],
+            boosted_odds=row["boosted_odds"],
         )
         bets.append(serialize_placed_bet(bet))
     return bets

@@ -183,6 +183,13 @@ class PlacedBet:
     # pending, and also None once settled if the account's daily Elo-counted cap was already
     # spent — the Beths payout still applies either way, see bet_repository).
     elo_delta: int | None = None
+    # "Elo boost": a random 2-20% bonus rolled once at placement for combinadas with 3+
+    # distinct match selections (see combinada_boost.py). None when not applicable. Purely a
+    # payout bonus - `combined_odds` and Elo settlement math always use the true, unboosted
+    # odds (see bet_repository._apply_elo_for_settlement); only `boosted_odds`/
+    # `potential_winnings` reflect it.
+    elo_boost_percent: float | None = None
+    boosted_odds: float | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

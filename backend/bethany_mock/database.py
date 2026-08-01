@@ -208,6 +208,10 @@ def initialize_database() -> None:
         # account (can be 0/None even when settled if the daily Elo-counted cap was already
         # spent - see bet_repository._apply_elo_for_settlement).
         _ensure_column(connection, "placed_bets", "elo_delta", "INTEGER")
+        # "Elo boost" bonus (2-20%) rolled for combinadas with 3+ distinct match selections -
+        # NULL when not applicable. See bet_repository.place_bet / combinada_boost.py.
+        _ensure_column(connection, "placed_bets", "elo_boost_percent", "REAL")
+        _ensure_column(connection, "placed_bets", "boosted_odds", "REAL")
         _ensure_column(connection, "account_state", "friends_json", "TEXT NOT NULL DEFAULT '[]'")
         _rename_column(connection, "elo_milestone_awards", "bonus_coins", "bonus_beths")
         # `friend_challenges` originally only supported match challenges (007-retos-entre-amigos);
