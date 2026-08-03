@@ -4,7 +4,7 @@ import { useAuth } from "../components/AuthContext";
 import { colors } from "../theme";
 
 export default function Index() {
-  const { isAuthenticated, isInitializing } = useAuth();
+  const { isAuthenticated, isInitializing, needsEmailVerification } = useAuth();
 
   if (isInitializing) {
     return (
@@ -12,6 +12,10 @@ export default function Index() {
         <ActivityIndicator color={colors.primary} />
       </View>
     );
+  }
+
+  if (isAuthenticated && needsEmailVerification) {
+    return <Redirect href="/(auth)/verify-email" />;
   }
 
   return <Redirect href={isAuthenticated ? "/(tabs)" : "/(auth)"} />;

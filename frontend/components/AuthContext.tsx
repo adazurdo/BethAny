@@ -7,19 +7,24 @@ import {
   loginAccount,
   logoutAccount,
   registerAccount,
+  resendVerificationCode,
   restoreSession,
   saveCurrentAccount,
+  verifyEmailCode,
 } from "../data/auth";
 
 type AuthContextValue = {
   account: AuthAccount | null;
   isAuthenticated: boolean;
   isInitializing: boolean;
+  needsEmailVerification: boolean;
   login: (credentials: AuthCredentials) => Promise<AuthAccount>;
   register: (credentials: AuthCredentials) => Promise<AuthAccount>;
   logout: () => Promise<void>;
   updateAccount: (update: AccountStateUpdate) => Promise<AuthAccount>;
   refreshAccount: () => Promise<AuthAccount>;
+  verifyEmail: (code: string) => Promise<AuthAccount>;
+  resendVerification: () => Promise<{ ok: true; sentAt: string }>;
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -83,15 +88,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return nextAccount;
     }
 
+    async function verifyEmail(code: string) {
+      const nextAccount = await verifyEmailCode(code);
+      setAccount(nextAccount);
+      return nextAccount;
+    }
+
+    async function resendVerification() {
+      return resendVerificationCode();
+    }
+
     return {
       account,
       isAuthenticated: Boolean(account),
       isInitializing,
+      needsEmailVerification: account?.status === "pending_verification",
       login,
       register,
       logout,
       updateAccount,
       refreshAccount,
+      verifyEmail,
+      resendVerification,
     };
   }, [account, isInitializing]);
 

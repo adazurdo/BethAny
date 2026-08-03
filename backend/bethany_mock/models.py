@@ -241,6 +241,12 @@ class UserAccount:
     created_at: str
     last_login_at: str
     status: str = "active"
+    # 009-verificacion-correo: only meaningful while status == "pending_verification";
+    # cleared back to None/default on verification. Never exposed via to_dict() (same
+    # treatment as password_hash/salt).
+    verification_code_hash: str | None = None
+    verification_code_sent_at: str | None = None
+    verification_attempts_remaining: int = 5
     profile: AccountProfile = field(default_factory=lambda: AccountProfile(
         display_name="bethany_fox",
         avatar_url="https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=256&h=256&fit=crop",

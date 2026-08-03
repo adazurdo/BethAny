@@ -19,6 +19,11 @@ def get_connection() -> sqlite3.Connection:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     connection = sqlite3.connect(DATABASE_PATH)
     connection.row_factory = sqlite3.Row
+    # sqlite ignores `ON DELETE CASCADE` unless FK enforcement is turned on per connection.
+    # Enabled here (009-verificacion-correo) because reclaiming an abandoned, never-verified
+    # account (see account_repository._delete_account) is the first place the app actually
+    # deletes an `accounts` row, and it relies on the cascades already declared below.
+    connection.execute("PRAGMA foreign_keys = ON")
     return connection
 
 
@@ -229,6 +234,12 @@ def initialize_database() -> None:
         # Real per-competition emblem (football-data.org only for now; esports game icons are
         # static assets handled entirely in the frontend, no per-competition source data for them).
         _ensure_column(connection, "competition_sources", "icon_url", "TEXT")
+        # 009-verificacion-correo: NULL/5 for every pre-existing row, and never re-read for a
+        # row whose `status` stays "active" (see research.md Decision 5) — no data migration
+        # needed to grandfather accounts created before this feature.
+        _ensure_column(connection, "accounts", "verification_code_hash", "TEXT")
+        _ensure_column(connection, "accounts", "verification_code_sent_at", "TEXT")
+        _ensure_column(connection, "accounts", "verification_attempts_remaining", "INTEGER NOT NULL DEFAULT 5")
         connection.commit()
 
 

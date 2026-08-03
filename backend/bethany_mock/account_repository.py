@@ -2,16 +2,33 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import re
 import secrets
 import uuid
 from dataclasses import asdict, fields
 from datetime import datetime, timedelta, timezone
 
 from .database import dumps, fetch_one, initialize_database, loads, get_connection
+from .email_sender import send_verification_email
 from .models import AccountProfile, BetRecord, UserAccount, create_default_bets, create_default_profile
 
 INCOME_AMOUNT_BETHS = 1
 INCOME_INTERVAL_SECONDS = 300  # 1 Beth every 5 minutes
+
+# 009-verificacion-correo constants
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+VERIFICATION_CODE_EXPIRY_HOURS = 24
+VERIFICATION_RESEND_COOLDOWN_SECONDS = 60
+MAX_VERIFICATION_ATTEMPTS = 5
+
+
+class ConflictError(RuntimeError):
+    """Raised when an operation would create/require a state conflicting with the current one.
+
+    Defined here (rather than in social_repository, which already depends on this module)
+    so account_repository itself can raise it for email-verification conflicts without a
+    circular import; social_repository imports and re-exports the same class below.
+    """
 
 # Legacy AccountProfile JSON keys (from before the coins->Beths rename) mapped to their
 # current field name, applied when reconstructing a profile from a persisted blob. Any
@@ -84,15 +101,60 @@ def _verify_password(password: str, salt: str, password_hash: str) -> bool:
     return hmac.compare_digest(candidate, password_hash)
 
 
+def _generate_verification_code() -> str:
+    return f"{secrets.randbelow(1_000_000):06d}"
+
+
+def _hash_verification_code(code: str, salt: str) -> str:
+    # Same pbkdf2+salt mechanism as _hash_password (Decision 3) — never store the code in
+    # the clear, reusing the account's existing salt instead of adding a 4th column for it.
+    return _hash_password(code, salt)
+
+
+def _verify_verification_code(code: str, salt: str, code_hash: str) -> bool:
+    return hmac.compare_digest(_hash_verification_code(code, salt), code_hash)
+
+
+def _verification_code_expired(account: UserAccount) -> bool:
+    if not account.verification_code_sent_at:
+        return True
+    sent_at = datetime.fromisoformat(account.verification_code_sent_at)
+    if sent_at.tzinfo is None:
+        sent_at = sent_at.replace(tzinfo=timezone.utc)
+    return datetime.now(timezone.utc) - sent_at > timedelta(hours=VERIFICATION_CODE_EXPIRY_HOURS)
+
+
+def _delete_account(account_id: str) -> None:
+    """Delete an abandoned, never-verified account so its `identifier` can be reclaimed
+    (FR-012). Relies on the `ON DELETE CASCADE` foreign keys already declared in
+    database.py (account_state, friend_requests, group_memberships, etc.) — safe now that
+    `get_connection()` turns on `PRAGMA foreign_keys`.
+    """
+    with get_connection() as connection:
+        connection.execute("DELETE FROM accounts WHERE id = ?", (account_id,))
+        connection.commit()
+
+
 def _serialize_account(account: UserAccount) -> None:
     with get_connection() as connection:
         connection.execute(
             """
             UPDATE accounts
-            SET identifier = ?, password_hash = ?, salt = ?, last_login_at = ?, status = ?
+            SET identifier = ?, password_hash = ?, salt = ?, last_login_at = ?, status = ?,
+                verification_code_hash = ?, verification_code_sent_at = ?, verification_attempts_remaining = ?
             WHERE id = ?
             """,
-            (account.identifier, account.password_hash, account.salt, account.last_login_at, account.status, account.id),
+            (
+                account.identifier,
+                account.password_hash,
+                account.salt,
+                account.last_login_at,
+                account.status,
+                account.verification_code_hash,
+                account.verification_code_sent_at,
+                account.verification_attempts_remaining,
+                account.id,
+            ),
         )
         connection.execute(
             """
@@ -132,6 +194,9 @@ def _row_to_account(row) -> UserAccount:
         created_at=row["created_at"],
         last_login_at=row["last_login_at"],
         status=row["status"],
+        verification_code_hash=row["verification_code_hash"],
+        verification_code_sent_at=row["verification_code_sent_at"],
+        verification_attempts_remaining=row["verification_attempts_remaining"],
         profile=profile,
         bets=bets,
     )
@@ -170,14 +235,24 @@ def register_account(identifier: str, password: str, display_name: str | None = 
     cleaned_identifier = identifier.strip().lower()
     if not cleaned_identifier:
         raise ValueError("identifier is required")
+    if not _EMAIL_RE.match(cleaned_identifier):
+        raise ValueError("identifier must be a valid email address")
     if len(password) < 4:
         raise ValueError("password is too short")
-    if get_account_by_identifier(cleaned_identifier) is not None:
-        raise ValueError("identifier already exists")
+
+    existing = get_account_by_identifier(cleaned_identifier)
+    if existing is not None:
+        # FR-012: an abandoned, never-verified registration doesn't permanently squat the
+        # identifier — once its code has expired, a new registration reclaims it.
+        if existing.status == "pending_verification" and _verification_code_expired(existing):
+            _delete_account(existing.id)
+        else:
+            raise ValueError("identifier already exists")
 
     salt = secrets.token_hex(16)
     now = _utcnow()
     account_id = _new_id("acct")
+    verification_code = _generate_verification_code()
     account = UserAccount(
         id=account_id,
         identifier=cleaned_identifier,
@@ -185,6 +260,10 @@ def register_account(identifier: str, password: str, display_name: str | None = 
         salt=salt,
         created_at=now,
         last_login_at=now,
+        status="pending_verification",
+        verification_code_hash=_hash_verification_code(verification_code, salt),
+        verification_code_sent_at=now,
+        verification_attempts_remaining=MAX_VERIFICATION_ATTEMPTS,
         profile=create_default_profile(display_name or cleaned_identifier),
         bets=create_default_bets(),
     )
@@ -192,14 +271,29 @@ def register_account(identifier: str, password: str, display_name: str | None = 
     with get_connection() as connection:
         connection.execute(
             """
-            INSERT INTO accounts (id, identifier, password_hash, salt, created_at, last_login_at, status)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO accounts (
+                id, identifier, password_hash, salt, created_at, last_login_at, status,
+                verification_code_hash, verification_code_sent_at, verification_attempts_remaining
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (account.id, account.identifier, account.password_hash, account.salt, account.created_at, account.last_login_at, account.status),
+            (
+                account.id,
+                account.identifier,
+                account.password_hash,
+                account.salt,
+                account.created_at,
+                account.last_login_at,
+                account.status,
+                account.verification_code_hash,
+                account.verification_code_sent_at,
+                account.verification_attempts_remaining,
+            ),
         )
         connection.commit()
 
     _serialize_account(account)
+    send_verification_email(cleaned_identifier, verification_code)
     return account
 
 
@@ -214,6 +308,53 @@ def authenticate_account(identifier: str, password: str) -> UserAccount:
     account.last_login_at = _utcnow()
     _grant_periodic_income(account)
     _serialize_account(account)
+    return account
+
+
+def verify_email_code(account_id: str, code: str) -> UserAccount:
+    account = get_account_by_id(account_id)
+    if account is None:
+        raise LookupError("account not found")
+    if account.status != "pending_verification":
+        raise ConflictError("account already verified")
+    if account.verification_attempts_remaining <= 0:
+        raise ConflictError("too many attempts, request a resend")
+    if _verification_code_expired(account):
+        raise ValueError("verification code expired, request a new one")
+    if not account.verification_code_hash or not _verify_verification_code(code, account.salt, account.verification_code_hash):
+        account.verification_attempts_remaining -= 1
+        _serialize_account(account)
+        raise ValueError("invalid verification code")
+
+    account.status = "active"
+    account.verification_code_hash = None
+    account.verification_code_sent_at = None
+    account.verification_attempts_remaining = MAX_VERIFICATION_ATTEMPTS
+    _serialize_account(account)
+    return account
+
+
+def resend_verification_code(account_id: str) -> UserAccount:
+    account = get_account_by_id(account_id)
+    if account is None:
+        raise LookupError("account not found")
+    if account.status != "pending_verification":
+        raise ConflictError("account already verified")
+    if account.verification_code_sent_at:
+        sent_at = datetime.fromisoformat(account.verification_code_sent_at)
+        if sent_at.tzinfo is None:
+            sent_at = sent_at.replace(tzinfo=timezone.utc)
+        elapsed = (datetime.now(timezone.utc) - sent_at).total_seconds()
+        if elapsed < VERIFICATION_RESEND_COOLDOWN_SECONDS:
+            remaining = int(VERIFICATION_RESEND_COOLDOWN_SECONDS - elapsed)
+            raise ConflictError(f"resend cooldown active, try again in {remaining}s")
+
+    code = _generate_verification_code()
+    account.verification_code_hash = _hash_verification_code(code, account.salt)
+    account.verification_code_sent_at = _utcnow()
+    account.verification_attempts_remaining = MAX_VERIFICATION_ATTEMPTS
+    _serialize_account(account)
+    send_verification_email(account.identifier, code)
     return account
 
 

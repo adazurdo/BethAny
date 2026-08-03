@@ -147,6 +147,19 @@ export async function loginAccount(credentials: AuthCredentials) {
   return response;
 }
 
+export async function verifyEmailCode(code: string) {
+  return requestJson<AuthAccount>("/auth/verify-email", {
+    method: "POST",
+    body: JSON.stringify({ code }),
+  });
+}
+
+export async function resendVerificationCode() {
+  return requestJson<{ ok: true; sentAt: string }>("/auth/resend-verification", {
+    method: "POST",
+  });
+}
+
 export async function logoutAccount() {
   try {
     return await requestJson<{ ok: true }>("/auth/logout", {

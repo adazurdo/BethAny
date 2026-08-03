@@ -3,13 +3,12 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-from .account_repository import get_account_by_id, get_account_by_identifier
+from .account_repository import ConflictError, get_account_by_id, get_account_by_identifier
 from .database import dumps, fetch_one, get_connection, initialize_database, loads
 from .models import CustomPrediction, FriendRequest, GroupInvite, GroupMembership, PredictionGroup, PredictionVote
 
-
-class ConflictError(RuntimeError):
-    """Raised when an operation would create a duplicate social relationship."""
+# ConflictError now lives in account_repository (see its docstring); re-exported here
+# unchanged so bet_repository/challenge_repository/api.py keep importing it from this module.
 
 
 def _utcnow() -> str:

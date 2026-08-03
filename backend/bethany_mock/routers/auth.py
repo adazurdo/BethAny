@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Body, Header, HTTPException
+from fastapi import APIRouter, Body, Depends, Header, HTTPException
 
-from ..account_repository import authenticate_account, register_account
-from ..session import SESSIONS, _new_session_token, _serialize_account, extract_bearer_token
+from ..account_repository import authenticate_account, register_account, resend_verification_code, verify_email_code
+from ..session import SESSIONS, _new_session_token, _serialize_account, extract_bearer_token, require_session
 
 router = APIRouter()
 
@@ -48,3 +48,18 @@ def logout(authorization: str | None = Header(default=None)) -> dict[str, Any]:
     if token:
         SESSIONS.pop(token, None)
     return {"ok": True}
+
+
+@router.post("/auth/verify-email")
+def verify_email(
+    payload: dict[str, Any] = Body(default={}),
+    account_id: str = Depends(require_session),
+) -> dict[str, Any]:
+    account = verify_email_code(account_id, str(payload.get("code", "")))
+    return _serialize_account(account)
+
+
+@router.post("/auth/resend-verification")
+def resend_verification(account_id: str = Depends(require_session)) -> dict[str, Any]:
+    account = resend_verification_code(account_id)
+    return {"ok": True, "sentAt": account.verification_code_sent_at}

@@ -22,8 +22,8 @@ export default function LoginScreen() {
     }
     setLoading(true);
     try {
-      await login({ identifier, password });
-      router.replace("/(tabs)");
+      const nextAccount = await login({ identifier, password });
+      router.replace(nextAccount.status === "pending_verification" ? "/(auth)/verify-email" : "/(tabs)");
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo iniciar sesión.");
     } finally {

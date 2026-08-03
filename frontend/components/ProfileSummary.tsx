@@ -16,6 +16,9 @@ type ProfileSummaryProps = {
   bio: string;
   onChangeAvatar?: () => void;
   changingAvatar?: boolean;
+  // 009-verificacion-correo: "pending_verification" | "active" (UserAccount.status).
+  emailStatus?: string;
+  onVerifyEmail?: () => void;
 };
 
 // Elo and Beths are the two numbers this feature (006-elo) most wants a user to notice at a
@@ -34,6 +37,8 @@ export function ProfileSummary({
   bio,
   onChangeAvatar,
   changingAvatar,
+  emailStatus,
+  onVerifyEmail,
 }: ProfileSummaryProps) {
   const identifierLabel = identifier ? (identifier.includes("@") ? "Correo de acceso" : "Usuario de acceso") : "Cuenta";
 
@@ -59,6 +64,15 @@ export function ProfileSummary({
             <Text style={styles.identityBadgeValue} numberOfLines={1}>
               {identifier}
             </Text>
+          </View>
+        ) : null}
+        {emailStatus === "pending_verification" ? (
+          <Pressable style={styles.verificationBadgePending} onPress={onVerifyEmail}>
+            <Text style={styles.verificationBadgePendingText}>Correo pendiente de verificar · Verificar ahora</Text>
+          </Pressable>
+        ) : emailStatus === "active" ? (
+          <View style={styles.verificationBadgeActive}>
+            <Text style={styles.verificationBadgeActiveText}>Correo verificado</Text>
           </View>
         ) : null}
         <Text style={styles.label}>{rankLabel}</Text>
@@ -151,6 +165,34 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700",
     color: colors.primaryDark,
+  },
+  verificationBadgePending: {
+    alignSelf: "flex-start",
+    backgroundColor: `${colors.danger}1a`,
+    borderRadius: 999,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: colors.danger,
+  },
+  verificationBadgePendingText: {
+    color: colors.danger,
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  verificationBadgeActive: {
+    alignSelf: "flex-start",
+    backgroundColor: `${colors.sky}1a`,
+    borderRadius: 999,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: colors.sky,
+  },
+  verificationBadgeActiveText: {
+    color: colors.sky,
+    fontSize: 12,
+    fontWeight: "800",
   },
   bio: {
     color: colors.muted,

@@ -19,13 +19,13 @@ export default function RegisterScreen() {
   async function handleRegister() {
     setError(null);
     if (!identifier.trim() || !password.trim()) {
-      setError("Introduce un email/usuario y una contraseña.");
+      setError("Introduce un email y una contraseña.");
       return;
     }
     setLoading(true);
     try {
-      await register({ identifier, password, displayName: displayName.trim() || undefined });
-      router.replace("/(tabs)");
+      const nextAccount = await register({ identifier, password, displayName: displayName.trim() || undefined });
+      router.replace(nextAccount.status === "pending_verification" ? "/(auth)/verify-email" : "/(tabs)");
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo crear la cuenta.");
     } finally {
@@ -46,7 +46,8 @@ export default function RegisterScreen() {
           <Icon glyph="mail" size={16} color={colors.muted} />
           <TextInput
             autoCapitalize="none"
-            placeholder="Email o usuario"
+            placeholder="Email"
+            keyboardType="email-address"
             placeholderTextColor={colors.muted}
             value={identifier}
             onChangeText={setIdentifier}

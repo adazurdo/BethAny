@@ -156,6 +156,19 @@ Si abres la app desde un dispositivo físico, define `EXPO_PUBLIC_BETHANY_API_UR
 
 ---
 
+## 🌐 Entorno desplegado (Vercel + Railway)
+
+Desde `ec89f4efc`/`a48edc688`, el backend se despliega en **Railway** (usa `backend/Procfile`, con `BETHANY_DATA_DIR` apuntando a un volumen persistente para que el SQLite sobreviva a redeploys) y el frontend en **Vercel** (usa `frontend/vercel.json`, `expo export -p web`).
+
+**Importante**: hoy el flujo habitual de prueba manual es contra estas URLs desplegadas, no contra `npm run dev` en local. Esto significa:
+
+- Un cambio de backend/frontend solo existe para quien prueba en Vercel/Railway **después** de `git push` a la rama conectada y de que ambos servicios completen su redeploy (automático o disparado manualmente desde su dashboard). Mientras tanto, es indistinguible de "el cambio no existe".
+- El frontend de Vercel necesita `EXPO_PUBLIC_BETHANY_API_URL` configurada en las variables de entorno de su propio proyecto (dashboard de Vercel), apuntando al dominio del backend en Railway — no se lee de ningún `.env` del repo en producción.
+- Cualquier secreto real que una feature necesite en producción (p. ej. credenciales SMTP para verificación de correo, ver `specs/009-verificacion-correo`) se configura como variable de entorno en el proyecto de Railway, nunca en el repositorio.
+- Si algo no falla en local pero tampoco aparece en lo desplegado, lo primero a revisar es si el cambio llegó a desplegarse (logs/estado del deploy en cada dashboard) antes de asumir un bug de código.
+
+---
+
 
 ## 🗂️ Estructura del proyecto
 

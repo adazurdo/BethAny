@@ -12,7 +12,7 @@ from ..challenge_repository import (
     resolve_custom_challenge,
     respond_challenge,
 )
-from ..session import require_session
+from ..session import require_session, require_verified_session
 
 router = APIRouter()
 
@@ -25,7 +25,7 @@ def get_my_challenges(account_id: str = Depends(require_session)) -> dict[str, A
 @router.post("/challenges", status_code=201)
 def create_challenge(
     payload: dict[str, Any] = Body(default={}),
-    account_id: str = Depends(require_session),
+    account_id: str = Depends(require_verified_session),
 ) -> dict[str, Any]:
     challenge_type = str(payload.get("challengeType", "match"))
     if challenge_type == "custom":
@@ -46,7 +46,7 @@ def create_challenge(
 
 
 @router.post("/challenges/{challenge_id}/accept")
-def accept_challenge(challenge_id: str, account_id: str = Depends(require_session)) -> dict[str, Any]:
+def accept_challenge(challenge_id: str, account_id: str = Depends(require_verified_session)) -> dict[str, Any]:
     return respond_challenge(account_id, challenge_id, accept=True)
 
 

@@ -127,6 +127,8 @@ export default function ProfileScreen() {
         identifier={account?.identifier}
         onChangeAvatar={account ? handleChangeAvatar : undefined}
         changingAvatar={changingAvatar}
+        emailStatus={account?.status}
+        onVerifyEmail={() => router.push("/(auth)/verify-email")}
       />
       {avatarError ? <Text style={styles.avatarErrorText}>{avatarError}</Text> : null}
 
