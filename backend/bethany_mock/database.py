@@ -1,13 +1,17 @@
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 from pathlib import Path
 from typing import Any, Iterable
 
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
-DATA_DIR = ROOT_DIR / "data"
+# BETHANY_DATA_DIR lets a deploy point this at a mounted persistent volume
+# (the container filesystem is wiped on every redeploy/restart otherwise).
+# Unset in local dev, where the default in-repo `data/` dir is already gitignored.
+DATA_DIR = Path(os.environ.get("BETHANY_DATA_DIR", str(ROOT_DIR / "data")))
 DATABASE_PATH = DATA_DIR / "bethany.sqlite3"
 
 

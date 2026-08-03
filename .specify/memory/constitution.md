@@ -1,24 +1,24 @@
 <!--
 Sync Impact Report
-- Version change: 1.0.0 -> 2.0.0
+- Version change: 2.0.0 -> 3.0.0
 - Modified principles:
-	- Template Principle 1 -> I. Simplicity Is Mandatory
-	- Template Principle 2 -> II. Local-First Runtime
-	- Template Principle 3 -> III. Stack Commitment: Python + React + Expo Validation
-	- Template Principle 4 -> IV. TDD Deferred Activation
+	- II. Local-First Runtime -> II. Local-First Development, Deploy Permitted
+	  (redefined: remote staging/production deployment is now explicitly
+	  permitted; local remains the default for day-to-day development)
 - Added sections:
-	- Technical Scope & Current Constraints
-	- Development Workflow & Quality Gates
+	- None
 - Removed sections:
 	- None
 - Templates requiring updates:
-	- ✅ updated: .specify/templates/plan-template.md
 	- ✅ updated: .specify/templates/spec-template.md
-	- ✅ updated: .specify/templates/tasks-template.md
-	- ⚠ pending: .specify/templates/commands/*.md (directory not present)
 	- ✅ updated: README.md
+	- ⚠ pending: .specify/templates/plan-template.md (no local-first-specific
+	  text found; generic Constitution Check section still valid)
+	- ⚠ pending: .specify/templates/tasks-template.md (no local-first-specific
+	  text found)
 - Follow-up TODOs:
-	- None
+	- Define the actual staging/production deploy process (hosting provider,
+	  CI/CD pipeline) in a dedicated plan once chosen.
 -->
 
 # BethAny Constitution
@@ -34,14 +34,18 @@ requirement, the simpler option MUST be selected.
 Rationale: Simplicity reduces regressions, speeds onboarding, and shortens
 feedback cycles for an early-stage product.
 
-### II. Local-First Runtime
-Until explicitly amended, all development and execution MUST run locally.
-Features MUST be designed to function without cloud dependencies. Networked
-services MAY be mocked locally, but production integrations MUST remain out of
-scope.
+### II. Local-First Development, Deploy Permitted
+Local execution remains the default for day-to-day development and testing.
+Remote deployment to a staging or production environment is permitted when
+explicitly decided by the maintainers. A deployed environment does not change
+the mock-stage constraints defined below: it MUST still avoid real secrets,
+real credentials, and real user data, and it MUST still be treated as
+pre-production despite being publicly reachable.
 
-Rationale: Local-first development minimizes infrastructure overhead and allows
-rapid iteration while the product model is still evolving.
+Rationale: Validating the product with real, remote usage requires a publicly
+reachable environment. Keeping local as the default preserves fast iteration
+for daily work, while explicitly allowing deploy unblocks that validation
+without pretending the mock-stage security posture has changed.
 
 ### III. Stack Commitment: Python + React + Expo Validation
 Backend and automation components MUST use Python. Frontend application layers
@@ -69,7 +73,10 @@ clear transition path to disciplined quality engineering.
 - Development data MUST be synthetic or anonymized.
 - Any security-related work items during this stage MUST be documented as
 	deferred tasks, not implemented controls, unless explicitly approved.
-- Runtime target in this phase is development mode only.
+- Local development remains the default runtime target. Staging/production
+	deployment is permitted when explicitly approved by maintainers, but does
+	not lift the constraints above: no real secrets, no real credentials, no
+	real user data, regardless of where the app runs.
 
 ## Development Workflow & Quality Gates
 
@@ -103,4 +110,4 @@ Compliance review expectations:
 - Periodic review SHOULD happen at least once per milestone to decide whether
 	deferred TDD and deferred security constraints should be activated.
 
-**Version**: 2.0.0 | **Ratified**: 2026-06-25 | **Last Amended**: 2026-06-25
+**Version**: 3.0.0 | **Ratified**: 2026-06-25 | **Last Amended**: 2026-08-03

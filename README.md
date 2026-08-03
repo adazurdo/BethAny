@@ -27,7 +27,7 @@ La monetización para desarrolladores se basa en:
 En esta fase inicial, BethAny se desarrolla con estas reglas activas:
 
 - Código sencillo y fácil de mantener.
-- Ejecución local-first (sin dependencias cloud obligatorias).
+- Ejecución local-first para desarrollo diario; despliegue a staging/producción permitido cuando el equipo lo decida explícitamente (sin levantar las restricciones de la fase mock: sin secretos reales ni datos de usuarios reales).
 - Backend y automatizaciones con **Python**.
 - Frontend con **React**.
 - Arranque de desarrollo frontend con `npm start dev`.

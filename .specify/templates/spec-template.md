@@ -12,8 +12,9 @@
 
 - **Simplicity Statement**: [Describe the simplest viable approach and any
   explicitly avoided complexity]
-- **Local-First Confirmation**: [Confirm all runtime assumptions are local-only
-  for the current phase]
+- **Local-First Confirmation**: [Confirm local remains the default dev/test
+  runtime; if this feature requires or assumes a staging/production deploy,
+  state that explicitly and confirm mock-stage constraints still apply]
 - **Stack Confirmation**: [Confirm Python + React usage and whether Expo mobile
   validation is required]
 - **TDD Mode**: [Deferred or Active. If Active, state how red-green-refactor is

@@ -1,0 +1,1 @@
+web: python -m uvicorn bethany_mock.api:app --host 0.0.0.0 --port $PORT
