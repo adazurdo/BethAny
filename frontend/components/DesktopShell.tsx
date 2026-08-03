@@ -5,7 +5,6 @@ import { BetSlipPanel } from "./BetSlipPanel";
 import { BetSlipSheet } from "./BetSlipSheet";
 import { useLocalSearchParams, usePathname, useRouter } from "expo-router";
 import { fetchMockCompetitionMatches, fetchMockCompetitions } from "../data/mockCompetitions";
-import { useStreak } from "./StreakContext";
 import { useAuth } from "./AuthContext";
 import { EconomyBadges } from "./EconomyBadges";
 import { Icon } from "./Icon";
@@ -108,7 +107,6 @@ export function DesktopShell({ children }: Props) {
   const [collapsedSports, setCollapsedSports] = useState<Set<string>>(new Set());
   const [expandedCompetitions, setExpandedCompetitions] = useState<Set<string>>(new Set());
   const [leaguesByCompetition, setLeaguesByCompetition] = useState<Record<string, LeagueSummary[] | "loading">>({});
-  const { triggerTestStreak } = useStreak();
   const { account } = useAuth();
   const elo = account?.profile.elo ?? 0;
   const beths = account?.profile.beths ?? 0;
@@ -211,14 +209,6 @@ export function DesktopShell({ children }: Props) {
       <View style={styles.mobileContainer}>
         {children}
         <BetSlipSheet />
-        <View style={styles.debugFloating}>
-          <Pressable style={[styles.debugButton, styles.debugButtonWin]} onPress={() => triggerTestStreak("win")}>
-            <Text style={styles.debugButtonText}>Racha win</Text>
-          </Pressable>
-          <Pressable style={[styles.debugButton, styles.debugButtonLoss]} onPress={() => triggerTestStreak("loss")}>
-            <Text style={styles.debugButtonText}>Racha loose</Text>
-          </Pressable>
-        </View>
       </View>
     );
   }
@@ -328,16 +318,6 @@ export function DesktopShell({ children }: Props) {
           {sportGroups.length === 0 ? (
             <Text style={styles.emptyText}>Sin resultados para "{searchQuery}"</Text>
           ) : null}
-        </View>
-
-        <Text style={styles.sideSubtitle}>Debug (provisional)</Text>
-        <View style={styles.debugGroup}>
-          <Pressable style={[styles.debugButton, styles.debugButtonWin]} onPress={() => triggerTestStreak("win")}>
-            <Text style={styles.debugButtonText}>Racha win</Text>
-          </Pressable>
-          <Pressable style={[styles.debugButton, styles.debugButtonLoss]} onPress={() => triggerTestStreak("loss")}>
-            <Text style={styles.debugButtonText}>Racha loose</Text>
-          </Pressable>
         </View>
         </ScrollView>
       </View>
@@ -521,36 +501,6 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     marginBottom: spacing.sm,
     fontSize: 16,
-  },
-  debugGroup: {
-    marginTop: spacing.sm,
-    gap: spacing.sm,
-  },
-  debugFloating: {
-    position: "absolute",
-    left: spacing.sm,
-    bottom: spacing.sm,
-    gap: spacing.sm,
-    zIndex: 20,
-  },
-  debugButton: {
-    borderRadius: radii.pill,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderWidth: 1,
-  },
-  debugButtonWin: {
-    backgroundColor: "rgba(34,197,94,0.15)",
-    borderColor: colors.success,
-  },
-  debugButtonLoss: {
-    backgroundColor: "rgba(244,80,109,0.15)",
-    borderColor: colors.danger,
-  },
-  debugButtonText: {
-    color: colors.text,
-    fontWeight: "800",
-    fontSize: 12,
   },
 });
 
