@@ -3,42 +3,9 @@ import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
 import { colors, radii, shadows, spacing, fontSizes, fontWeights } from "../theme";
 import { useBetSlip, BetSlipTab, Selection } from "./BetSlipContext";
 import type { EloPreview, QuickStakeOption } from "../data/eloPreview";
-import { BethsIcon } from "./BethsIcon";
 
 function formatOdds(value: number) {
   return value.toFixed(2);
-}
-
-// Winning only ever gives back the stake risked, regardless of odds (see bet_repository.py
-// _persist) — this mirrors that, so the preview shown before placing a bet matches what the
-// server will actually credit.
-function potentialWinnings(stakeRaw: string): string | null {
-  const stake = Number(stakeRaw);
-  if (!Number.isFinite(stake) || stake <= 0) return null;
-  return stake.toFixed(2);
-}
-
-function StakeInfoRow({ stakeValue }: { stakeValue: string }) {
-  const stake = Number(stakeValue);
-  const hasStake = Number.isFinite(stake) && stake > 0;
-  return (
-    <View style={styles.stakeInfoRow}>
-      <View style={styles.stakeInfoItem}>
-        <Text style={styles.stakeInfoLabel}>Apuestas</Text>
-        <View style={styles.stakeInfoValueRow}>
-          <Text style={styles.stakeInfoValue}>{hasStake ? stakeValue : "—"}</Text>
-          <BethsIcon size={12} color={colors.muted} />
-        </View>
-      </View>
-      <View style={styles.stakeInfoItem}>
-        <Text style={styles.stakeInfoLabel}>Si aciertas cobras</Text>
-        <View style={styles.stakeInfoValueRow}>
-          <Text style={styles.stakeInfoValue}>{potentialWinnings(stakeValue) ?? "—"}</Text>
-          <BethsIcon size={12} color={colors.accent} />
-        </View>
-      </View>
-    </View>
-  );
 }
 
 function EloPreviewRow({ preview, countsToday }: { preview: EloPreview | null; countsToday: boolean }) {
@@ -147,7 +114,6 @@ function TicketRow({ selection, activeTab, stakeValue, onPickStake, onRemove, el
         <>
           <Text style={styles.eloGridLabel}>Elige cuánto Elo quieres ganar</Text>
           <EloOptionGrid options={eloOptions} selectedStake={stakeValue} onPick={onPickStake} />
-          <StakeInfoRow stakeValue={stakeValue} />
           <EloPreviewRow preview={eloPreview} countsToday={eloCountsToday} />
         </>
       ) : null}
@@ -258,7 +224,6 @@ export function BetSlipPanel() {
             selectedStake={combinadaStake}
             onPick={(stake) => setCombinadaStake(String(stake))}
           />
-          <StakeInfoRow stakeValue={combinadaStake} />
           <EloPreviewRow preview={eloPreview(combinedOdds, combinadaStake)} countsToday={eloRemainingToday > 0} />
         </View>
       ) : null}
@@ -402,31 +367,6 @@ const styles = StyleSheet.create({
   },
   eloChipSubtextSelected: {
     color: colors.accent,
-  },
-  stakeInfoRow: {
-    flexDirection: "row",
-    gap: spacing.md,
-    marginTop: 8,
-  },
-  stakeInfoItem: {
-    flex: 1,
-  },
-  stakeInfoLabel: {
-    color: colors.muted,
-    fontSize: 11,
-    fontWeight: "700",
-    textTransform: "uppercase",
-    letterSpacing: 0.3,
-  },
-  stakeInfoValueRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    marginTop: 2,
-  },
-  stakeInfoValue: {
-    color: colors.text,
-    fontWeight: "800",
   },
   eloPreviewRow: {
     marginTop: 4,
