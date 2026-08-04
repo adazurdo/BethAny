@@ -12,8 +12,8 @@ from .database import dumps, fetch_one, initialize_database, loads, get_connecti
 from .email_sender import send_verification_email
 from .models import AccountProfile, BetRecord, UserAccount, create_default_bets, create_default_profile
 
-INCOME_AMOUNT_BETHS = 1
-INCOME_INTERVAL_SECONDS = 300  # 1 Beth every 5 minutes
+INCOME_AMOUNT_BETHS = 5
+INCOME_INTERVAL_SECONDS = 300  # 5 Beths every 5 minutes
 
 # 009-verificacion-correo constants
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
@@ -54,10 +54,12 @@ def _utcnow() -> str:
 
 
 def _grant_periodic_income(account: UserAccount) -> bool:
-    """Lazily grant 1 Beth per full `INCOME_INTERVAL_SECONDS` elapsed since the last
-    grant (see `specs/006-elo/research.md` Decision 7 — updated 2026-07-17 from a
-    weekly lump sum to a continuous 5-minute drip, so the client can show a live
-    countdown to the next Beth). Returns True if any Beths were granted.
+    """Lazily grant `INCOME_AMOUNT_BETHS` per full `INCOME_INTERVAL_SECONDS` elapsed since the
+    last grant (see `specs/006-elo/research.md` Decision 7 — updated 2026-07-17 from a weekly
+    lump sum to a continuous 5-minute drip, so the client can show a live countdown to the next
+    grant; the per-grant amount was later raised from 1 to 5 once bets stopped paying out any
+    beths profit, so passive income is the only way a spent-down balance recovers). Returns
+    True if any Beths were granted.
 
     A brand-new account (empty `beths_last_grant_at`) just gets its baseline set to
     now, without an extra grant — the starter balance already covers it.
