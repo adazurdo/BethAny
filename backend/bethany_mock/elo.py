@@ -15,8 +15,8 @@ BETHS_PER_ELO_TIER = 50
 P_IMPLIED_MIN = 0.05
 P_IMPLIED_MAX = 0.95
 
-STAKE_MULT_MIN = 0.8
-STAKE_MULT_MAX = 1.5
+STAKE_MULT_MIN = 0.5
+STAKE_MULT_MAX = 2.5
 
 MAX_ELO_STAKE = 1000
 DAILY_ELO_COUNTED_BETS = 5
@@ -46,11 +46,13 @@ def implied_probability(odds: float) -> float:
 def stake_multiplier(stake: float) -> float:
     """Diminishing-returns confidence multiplier on the Beths staked: each extra Beth
     moves Elo less than the last, and the multiplier is hard-capped at
-    STAKE_MULT_MAX (reached at MAX_ELO_STAKE) so saving up for one giant bet never
-    pays off beyond that point."""
+    STAKE_MULT_MAX (reached exactly at MAX_ELO_STAKE) so saving up for one giant bet
+    never pays off beyond that point. Widened from the original [0.8, 1.5] range to
+    [0.5, 2.5] (product decision) so stake size actually swings the Elo result
+    noticeably instead of only nudging it."""
     if stake <= 0:
         return STAKE_MULT_MIN
-    raw = 0.45 + 0.35 * math.log10(stake)
+    raw = 0.5 + (2.0 / 3.0) * math.log10(stake)
     return max(STAKE_MULT_MIN, min(STAKE_MULT_MAX, raw))
 
 
