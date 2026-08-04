@@ -9,13 +9,16 @@ function formatOdds(value: number) {
   return value.toFixed(2);
 }
 
-function potentialWinnings(stakeRaw: string, odds: number): string | null {
+// Winning only ever gives back the stake risked, regardless of odds (see bet_repository.py
+// _persist) — this mirrors that, so the preview shown before placing a bet matches what the
+// server will actually credit.
+function potentialWinnings(stakeRaw: string): string | null {
   const stake = Number(stakeRaw);
   if (!Number.isFinite(stake) || stake <= 0) return null;
-  return (stake * odds).toFixed(2);
+  return stake.toFixed(2);
 }
 
-function StakeInfoRow({ stakeValue, odds }: { stakeValue: string; odds: number }) {
+function StakeInfoRow({ stakeValue }: { stakeValue: string }) {
   const stake = Number(stakeValue);
   const hasStake = Number.isFinite(stake) && stake > 0;
   return (
@@ -30,7 +33,7 @@ function StakeInfoRow({ stakeValue, odds }: { stakeValue: string; odds: number }
       <View style={styles.stakeInfoItem}>
         <Text style={styles.stakeInfoLabel}>Si aciertas cobras</Text>
         <View style={styles.stakeInfoValueRow}>
-          <Text style={styles.stakeInfoValue}>{potentialWinnings(stakeValue, odds) ?? "—"}</Text>
+          <Text style={styles.stakeInfoValue}>{potentialWinnings(stakeValue) ?? "—"}</Text>
           <BethsIcon size={12} color={colors.accent} />
         </View>
       </View>
@@ -144,7 +147,7 @@ function TicketRow({ selection, activeTab, stakeValue, onPickStake, onRemove, el
         <>
           <Text style={styles.eloGridLabel}>Elige cuánto Elo quieres ganar</Text>
           <EloOptionGrid options={eloOptions} selectedStake={stakeValue} onPick={onPickStake} />
-          <StakeInfoRow stakeValue={stakeValue} odds={selection.odds} />
+          <StakeInfoRow stakeValue={stakeValue} />
           <EloPreviewRow preview={eloPreview} countsToday={eloCountsToday} />
         </>
       ) : null}
@@ -255,7 +258,7 @@ export function BetSlipPanel() {
             selectedStake={combinadaStake}
             onPick={(stake) => setCombinadaStake(String(stake))}
           />
-          <StakeInfoRow stakeValue={combinadaStake} odds={combinedOdds} />
+          <StakeInfoRow stakeValue={combinadaStake} />
           <EloPreviewRow preview={eloPreview(combinedOdds, combinadaStake)} countsToday={eloRemainingToday > 0} />
         </View>
       ) : null}

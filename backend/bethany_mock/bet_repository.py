@@ -212,17 +212,17 @@ def _persist(
     elo_boost_percent: float | None = None,
     boosted_odds: float | None = None,
 ) -> PlacedBet:
-    # The boost, when present, only inflates the payout basis - `combined_odds` itself always
-    # stays the true, unboosted sum (Elo settlement math depends on that, see
-    # _apply_elo_for_settlement).
-    payout_odds = boosted_odds if boosted_odds is not None else combined_odds
+    # Winning a bet only ever gives back exactly the stake risked (product decision: odds no
+    # longer inflate the payout, so a long-shot pick can't mint outsized beths). `combined_odds`
+    # and `boosted_odds` are still recorded as-is for display and for Elo settlement math (see
+    # _apply_elo_for_settlement), which is entirely separate from this payout amount.
     bet = PlacedBet(
         id=_new_id("bet"),
         account_id=account_id,
         bet_type=bet_type,
         stake=stake,
         combined_odds=round(combined_odds, 2),
-        potential_winnings=round(stake * payout_odds, 2),
+        potential_winnings=round(stake, 2),
         created_at=_utcnow(),
         selections=selections,
         elo_boost_percent=elo_boost_percent,
