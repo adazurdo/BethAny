@@ -2,7 +2,6 @@ import React, { useEffect, useRef, useState } from "react";
 import { Animated, Easing, Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { colors, radii, shadows, spacing, fontSizes } from "../theme";
 import type { PlacedBet } from "../data/bets";
-import { BethsIcon } from "./BethsIcon";
 
 type Props = {
   bet: PlacedBet | null;
@@ -101,7 +100,6 @@ export function EloBoostRevealModal({ bet, onClose }: Props) {
 
   if (!visible || !bet) return null;
 
-  const boostedOdds = bet.boostedOdds ?? bet.combinedOdds;
   const rotateDeg = rotation.interpolate({ inputRange: [0, 360], outputRange: ["0deg", "360deg"], extrapolate: "extend" });
 
   return (
@@ -147,18 +145,9 @@ export function EloBoostRevealModal({ bet, onClose }: Props) {
               <Animated.Text style={[styles.resultPercent, { transform: [{ scale: landPulse }] }]}>
                 +{finalPercent.toFixed(1)}%
               </Animated.Text>
-              <View style={styles.oddsRow}>
-                <Text style={styles.oddsFrom}>{bet.combinedOdds.toFixed(2)}</Text>
-                <Text style={styles.oddsArrow}>→</Text>
-                <Text style={styles.oddsTo}>{boostedOdds.toFixed(2)}</Text>
-              </View>
-              <View style={styles.winningsRow}>
-                <Text style={styles.winningsLabel}>Ganancia potencial</Text>
-                <View style={styles.winningsValueRow}>
-                  <Text style={styles.winningsValue}>{bet.potentialWinnings.toFixed(2)}</Text>
-                  <BethsIcon size={13} color={colors.accent} />
-                </View>
-              </View>
+              <Text style={styles.boostExplainer}>
+                Si aciertas esta combinada, el Elo que ganes tendrá un {finalPercent.toFixed(1)}% extra.
+              </Text>
               <Pressable style={styles.closeButton} onPress={onClose}>
                 <Text style={styles.closeButtonText}>Genial</Text>
               </Pressable>
@@ -283,53 +272,12 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginTop: spacing.xs,
   },
-  oddsRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.xs,
-    marginBottom: spacing.md,
-  },
-  oddsFrom: {
+  boostExplainer: {
     color: colors.muted,
-    fontWeight: "700",
-    fontSize: fontSizes.lg,
-    textDecorationLine: "line-through",
-  },
-  oddsArrow: {
-    color: colors.muted,
-    fontWeight: "700",
-  },
-  oddsTo: {
-    color: colors.text,
-    fontWeight: "900",
-    fontSize: fontSizes.lg,
-  },
-  winningsRow: {
-    width: "100%",
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    backgroundColor: colors.surfaceSoft,
-    borderRadius: radii.sm,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    marginBottom: spacing.md,
-  },
-  winningsLabel: {
-    color: colors.muted,
-    fontWeight: "700",
     fontSize: fontSizes.sm,
-  },
-  winningsValueRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  winningsValue: {
-    color: colors.text,
-    fontWeight: "900",
+    textAlign: "center",
+    marginBottom: spacing.md,
+    paddingHorizontal: spacing.sm,
   },
   closeButton: {
     backgroundColor: colors.primary,

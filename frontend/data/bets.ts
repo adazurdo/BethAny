@@ -27,10 +27,13 @@ export type PlacedBet = {
   // and also null once settled if the account's daily Elo-counted cap was already spent that
   // day (the bet still won/lost Beths normally, it just didn't move Elo).
   eloDelta: number | null;
-  // "Elo boost": a random 2-20% payout bonus rolled server-side at placement for combinadas
-  // with 3+ distinct match selections. Null when not applicable. Purely economic - it never
-  // affects combinedOdds or eloDelta, only boostedOdds/potentialWinnings.
+  // "Elo boost": a random 2-20% bonus rolled server-side at placement for combinadas with 3+
+  // distinct match selections, applied to the Elo actually gained if the bet wins (see
+  // bet_repository._apply_elo_for_settlement) - never to combinedOdds or potentialWinnings.
+  // Null when not applicable, or a no-op if the bet ends up losing.
   eloBoostPercent: number | null;
+  // Kept for display only (see BetSlipPanel's combinada hint) - no longer affects payout or
+  // Elo difficulty, both of which always use the true, unboosted combinedOdds.
   boostedOdds: number | null;
   selections: PlacedBetSelection[];
 };

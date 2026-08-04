@@ -64,16 +64,24 @@ def _credit_beths(account_id: str, amount: float) -> None:
     save_account_state(account)
 
 
-def _apply_elo_for_settlement(account_id: str, combined_odds: float, stake: float, won: bool) -> int | None:
+def _apply_elo_for_settlement(
+    account_id: str, combined_odds: float, stake: float, won: bool, elo_boost_percent: float | None = None
+) -> int | None:
     """Move `account_id`'s Elo from one settled bet's outcome (cuota=difficulty,
     stake=confidence, won=result), unless today's daily Elo-counted cap is already
     spent (see specs/006-elo/research.md Decision 2-bis) — the bet's Beths payout still
     applies either way, only the Elo effect is capped.
 
+    `elo_boost_percent` is the combinada Elo Boost (2-20%, rolled at placement - see
+    combinada_boost.py): it amplifies the Elo actually *gained* on a win, not the Beths payout
+    (which is always just the stake back - see `_persist`) and not the difficulty used to
+    compute the base delta (`combined_odds` stays the true, unboosted sum for that). There's
+    nothing to boost about how much Elo a loss costs, so it's a no-op when `won` is False.
+
     Returns the exact Elo change applied to the account (new_elo - old_elo, after the floor
-    clamp and rounding already inside `elo.update_elo_from_bet`), or `None` if the daily cap
-    meant no Elo effect happened at all - the caller persists this on the bet itself so a
-    player can see how much Elo each individual bet won or lost.
+    clamp and rounding), or `None` if the daily cap meant no Elo effect happened at all - the
+    caller persists this on the bet itself so a player can see how much Elo each individual bet
+    won or lost.
     """
     account = get_account_by_id(account_id)
     if account is None:
@@ -89,7 +97,10 @@ def _apply_elo_for_settlement(account_id: str, combined_odds: float, stake: floa
     capped_stake = min(stake, elo.MAX_ELO_STAKE)
     result = 1.0 if won else 0.0
     old_elo = profile.elo
-    new_elo, _delta = elo.update_elo_from_bet(profile.elo, combined_odds, result, profile.elo_bets_settled, capped_stake)
+    _, delta = elo.update_elo_from_bet(profile.elo, combined_odds, result, profile.elo_bets_settled, capped_stake)
+    if won and elo_boost_percent:
+        delta *= 1 + elo_boost_percent / 100
+    new_elo = max(elo.ELO_FLOOR, round(old_elo + delta))
 
     if profile.highest_elo_milestone < 0:
         profile.highest_elo_milestone = elo.milestone_tier(profile.elo)
@@ -369,7 +380,9 @@ def _settle_due_bets(account_id: str) -> None:
 
         if won:
             _credit_beths(account_id, row["potential_winnings"])
-        elo_delta = _apply_elo_for_settlement(account_id, row["combined_odds"], row["stake"], won)
+        elo_delta = _apply_elo_for_settlement(
+            account_id, row["combined_odds"], row["stake"], won, row["elo_boost_percent"]
+        )
 
         with get_connection() as connection:
             connection.execute(

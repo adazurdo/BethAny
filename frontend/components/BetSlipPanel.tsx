@@ -226,7 +226,7 @@ export function BetSlipPanel() {
       {activeTab === "combinada" ? (
         <Text style={styles.combinadaHint}>
           Con 2 o más selecciones solo puedes apostar al total de la combinada, no a cada parte por separado.
-          {selections.length >= 3 ? " Al confirmar, esta combinada puede desbloquear un Elo Boost de hasta el 20% sobre la cuota." : ""}
+          {selections.length >= 3 ? " Al confirmar, esta combinada puede desbloquear un Elo Boost de hasta el 20% extra sobre el Elo que ganes si aciertas." : ""}
         </Text>
       ) : null}
 

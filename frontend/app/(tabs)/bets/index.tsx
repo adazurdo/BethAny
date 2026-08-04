@@ -173,9 +173,7 @@ function BetCard({ bet }: { bet: PlacedBet }) {
           {bet.eloBoostPercent !== null ? (
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Elo Boost</Text>
-              <Text style={[styles.summaryValue, { color: colors.primary }]}>
-                +{bet.eloBoostPercent.toFixed(1)}% · {(bet.boostedOdds ?? bet.combinedOdds).toFixed(2)}
-              </Text>
+              <Text style={[styles.summaryValue, { color: colors.primary }]}>+{bet.eloBoostPercent.toFixed(1)}% Elo</Text>
             </View>
           ) : null}
           <View style={styles.summaryRow}>
