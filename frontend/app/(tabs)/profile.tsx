@@ -4,6 +4,7 @@ import { router } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import { AvatarCropModal } from "../../components/AvatarCropModal";
 import { useAuth } from "../../components/AuthContext";
+import { DeleteAccountModal } from "../../components/DeleteAccountModal";
 import { EditProfileModal } from "../../components/EditProfileModal";
 import { Icon } from "../../components/Icon";
 import { ProfileSummary } from "../../components/ProfileSummary";
@@ -20,7 +21,7 @@ type PickedImage = {
 };
 
 export default function ProfileScreen() {
-  const { account, logout, updateAccount, refreshAccount } = useAuth();
+  const { account, logout, deleteAccount, updateAccount, refreshAccount } = useAuth();
   const profile = account?.profile ?? mockProfile;
   const [changingAvatar, setChangingAvatar] = useState(false);
   const [avatarError, setAvatarError] = useState<string | null>(null);
@@ -28,6 +29,7 @@ export default function ProfileScreen() {
   const [cropModalVisible, setCropModalVisible] = useState(false);
   const [dismissingMilestones, setDismissingMilestones] = useState(false);
   const [editModalVisible, setEditModalVisible] = useState(false);
+  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
 
   const unseenMilestones = account?.unseenEloMilestones ?? [];
 
@@ -119,6 +121,12 @@ export default function ProfileScreen() {
     router.replace("/(auth)");
   }
 
+  async function handleDeleteAccount(password: string) {
+    await deleteAccount(password);
+    setDeleteModalVisible(false);
+    router.replace("/(auth)");
+  }
+
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <Text style={styles.pageLabel}>Profile</Text>
@@ -173,6 +181,12 @@ export default function ProfileScreen() {
           <Icon glyph="logout" size={15} color={colors.danger} />
           <Text style={styles.logoutText}>Cerrar sesión</Text>
         </Tappable>
+        {account ? (
+          <Tappable onPress={() => setDeleteModalVisible(true)} style={styles.deleteButton}>
+            <Icon glyph="trash" size={15} color={colors.danger} />
+            <Text style={styles.deleteText}>Eliminar cuenta</Text>
+          </Tappable>
+        ) : null}
       </View>
 
       <EditProfileModal
@@ -181,6 +195,12 @@ export default function ProfileScreen() {
         initialBio={profile.bio}
         onClose={() => setEditModalVisible(false)}
         onSave={handleSaveProfile}
+      />
+
+      <DeleteAccountModal
+        visible={deleteModalVisible}
+        onClose={() => setDeleteModalVisible(false)}
+        onConfirm={handleDeleteAccount}
       />
     </ScrollView>
   );
@@ -283,5 +303,18 @@ const styles = StyleSheet.create({
   logoutText: {
     color: colors.danger,
     fontWeight: "800",
+  },
+  deleteButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 10,
+  },
+  deleteText: {
+    color: colors.muted,
+    fontWeight: "700",
+    fontSize: 13,
+    textDecorationLine: "underline",
   },
 });

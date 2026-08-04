@@ -43,6 +43,7 @@ const iconMap = {
   wallet: "wallet-outline",
   settings: "settings-outline",
   logout: "log-out-outline",
+  trash: "trash-outline",
   shield: "shield-outline",
   football: "football-outline",
   esports: "game-controller-outline",

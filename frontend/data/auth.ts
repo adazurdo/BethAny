@@ -160,6 +160,18 @@ export async function resendVerificationCode() {
   });
 }
 
+// Unlike logoutAccount, the local session is only cleared once the server confirms the
+// account is actually gone — a wrong password (401) must leave the still-valid session intact.
+export async function deleteAccount(password: string) {
+  const response = await requestJson<{ ok: true }>("/account/me", {
+    method: "DELETE",
+    body: JSON.stringify({ password }),
+  });
+  sessionToken = null;
+  await AsyncStorage.removeItem(SESSION_TOKEN_STORAGE_KEY).catch(() => {});
+  return response;
+}
+
 export async function logoutAccount() {
   try {
     return await requestJson<{ ok: true }>("/auth/logout", {

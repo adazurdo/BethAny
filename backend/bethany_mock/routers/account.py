@@ -4,7 +4,7 @@ from typing import Any
 
 from fastapi import APIRouter, Body, Depends, Header, HTTPException
 
-from ..account_repository import get_account_by_id, replace_account_state
+from ..account_repository import delete_own_account, get_account_by_id, replace_account_state
 from ..models import AccountProfile, BetRecord
 from ..profile import build_account_profile
 from ..session import SESSIONS, _serialize_account, extract_bearer_token, require_session
@@ -89,6 +89,24 @@ def update_me(
 
     updated = replace_account_state(account.id, profile=account.profile, bets=account.bets)
     return _serialize_account(updated)
+
+
+@router.delete("/account/me")
+def delete_me(
+    payload: dict[str, Any] = Body(default={}),
+    account_id: str = Depends(require_session),
+    authorization: str | None = Header(default=None),
+) -> dict[str, Any]:
+    try:
+        delete_own_account(account_id, str(payload.get("password", "")))
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except PermissionError as exc:
+        raise HTTPException(status_code=401, detail=str(exc)) from exc
+    token = extract_bearer_token(authorization)
+    if token:
+        SESSIONS.pop(token, None)
+    return {"ok": True}
 
 
 @router.post("/account/me/milestones/ack")

@@ -13,7 +13,7 @@ class AccountProfile:
     win_rate: str
     streak: str
     bio: str
-    beths: int = 500
+    beths: int = 300
     beths_last_grant_at: str = ""
     # -1 = not yet initialized; social_repository lazily sets it to elo.milestone_tier(elo)
     # on first use, so accounts with a manually-edited elo (pre-this-feature) or that never
@@ -353,12 +353,12 @@ def create_default_profile(display_name: str | None = None) -> AccountProfile:
     profile = AccountProfile(
         display_name=display_name or "bethany_fox",
         avatar_url="https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=256&h=256&fit=crop",
-        elo=1768,
+        elo=300,
         rank_label="Prediction Captain",
         win_rate="68% win rate",
         streak="5 wins in a row",
         bio="Competitive predictor with a sharp eye for football, tennis, and esports.",
-        beths=500,
+        beths=300,
     )
     return profile
 

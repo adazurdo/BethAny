@@ -3,6 +3,7 @@ import {
   AccountStateUpdate,
   AuthAccount,
   AuthCredentials,
+  deleteAccount,
   loadCurrentAccount,
   loginAccount,
   logoutAccount,
@@ -21,6 +22,7 @@ type AuthContextValue = {
   login: (credentials: AuthCredentials) => Promise<AuthAccount>;
   register: (credentials: AuthCredentials) => Promise<AuthAccount>;
   logout: () => Promise<void>;
+  deleteAccount: (password: string) => Promise<void>;
   updateAccount: (update: AccountStateUpdate) => Promise<AuthAccount>;
   refreshAccount: () => Promise<AuthAccount>;
   verifyEmail: (code: string) => Promise<AuthAccount>;
@@ -76,6 +78,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setAccount(null);
     }
 
+    async function removeAccount(password: string) {
+      await deleteAccount(password);
+      setAccount(null);
+    }
+
     async function updateAccount(update: AccountStateUpdate) {
       const nextAccount = await saveCurrentAccount(update);
       setAccount(nextAccount);
@@ -106,6 +113,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       login,
       register,
       logout,
+      deleteAccount: removeAccount,
       updateAccount,
       refreshAccount,
       verifyEmail,

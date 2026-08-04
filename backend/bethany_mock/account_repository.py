@@ -297,6 +297,18 @@ def register_account(identifier: str, password: str, display_name: str | None = 
     return account
 
 
+def delete_own_account(account_id: str, password: str) -> None:
+    """Permanently delete `account_id` after confirming `password` (a valid session alone
+    isn't enough for an irreversible action — this guards against e.g. a shared/unlocked
+    device). Cascades through every related table via `_delete_account`."""
+    account = get_account_by_id(account_id)
+    if account is None:
+        raise LookupError("account not found")
+    if not _verify_password(password, account.salt, account.password_hash):
+        raise PermissionError("invalid credentials")
+    _delete_account(account_id)
+
+
 def authenticate_account(identifier: str, password: str) -> UserAccount:
     initialize_repository()
     account = get_account_by_identifier(identifier.strip().lower())
