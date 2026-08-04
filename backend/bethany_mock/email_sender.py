@@ -49,6 +49,9 @@ def send_verification_email(to_address: str, code: str) -> None:
         headers={
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
+            # Resend sits behind Cloudflare, which blocks urllib's default "Python-urllib/x.y"
+            # User-Agent as a bot signature (403 "Access Denied") — confirmed in production.
+            "User-Agent": "BethAny-Backend/1.0",
         },
     )
     try:
