@@ -45,9 +45,11 @@ type BetSlipContextValue = {
   eloRemainingToday: number;
   // A handful of concrete Elo-on-win picks (Conservador/Equilibrado/Arriesgado/Máximo) spread
   // across the full range actually reachable with the account's current Beths for a given
-  // odds - the bet slip only offers these as buttons, it never lets the player type a Beths
-  // amount (or an Elo target) freely.
+  // odds, shown as buttons - the player can also type a stake directly, up to maxStake.
   eloOptions: (odds: number) => QuickStakeOption[];
+  // The most this account could stake on a single bet right now: min(current Beths,
+  // MAX_ELO_STAKE). Used both as the manual stake input's hint and its clamp.
+  maxStake: number;
 };
 
 const OUTCOMES: BetOutcome[] = ["local", "empate", "visitante"];
@@ -275,6 +277,7 @@ export function BetSlipProvider({ children }: { children: React.ReactNode }) {
         eloPreview,
         eloRemainingToday,
         eloOptions: getEloOptions,
+        maxStake: maxAvailableBeths,
       }}
     >
       {children}
