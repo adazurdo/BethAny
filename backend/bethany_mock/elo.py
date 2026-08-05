@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import math
-
 K_FACTOR_NEW = 32
 K_FACTOR_ESTABLISHED = 16
 K_FACTOR_VETERAN = 8
@@ -15,10 +13,10 @@ BETHS_PER_ELO_TIER = 50
 P_IMPLIED_MIN = 0.05
 P_IMPLIED_MAX = 0.95
 
-STAKE_MULT_MIN = 0.5
-STAKE_MULT_MAX = 2.5
+STAKE_MULT_MIN = 0.2
+STAKE_MULT_MAX = 5.0
 
-MAX_ELO_STAKE = 1000
+MAX_ELO_STAKE = 100
 DAILY_ELO_COUNTED_BETS = 5
 PROVISIONAL_COUNTED_BETS = 20
 
@@ -44,15 +42,14 @@ def implied_probability(odds: float) -> float:
 
 
 def stake_multiplier(stake: float) -> float:
-    """Diminishing-returns confidence multiplier on the Beths staked: each extra Beth
-    moves Elo less than the last, and the multiplier is hard-capped at
-    STAKE_MULT_MAX (reached exactly at MAX_ELO_STAKE) so saving up for one giant bet
-    never pays off beyond that point. Widened from the original [0.8, 1.5] range to
-    [0.5, 2.5] (product decision) so stake size actually swings the Elo result
-    noticeably instead of only nudging it."""
+    """Confidence multiplier on the Beths staked: linear in `stake` (product decision -
+    previously logarithmic, which barely moved past the first ~10 Beths), reaching
+    STAKE_MULT_MAX exactly at MAX_ELO_STAKE. MAX_ELO_STAKE was lowered from 1000 to 100
+    alongside this so the full multiplier range is reachable at a realistic stake size
+    instead of requiring a huge one."""
     if stake <= 0:
         return STAKE_MULT_MIN
-    raw = 0.5 + (2.0 / 3.0) * math.log10(stake)
+    raw = STAKE_MULT_MIN + (STAKE_MULT_MAX - STAKE_MULT_MIN) * (stake / MAX_ELO_STAKE)
     return max(STAKE_MULT_MIN, min(STAKE_MULT_MAX, raw))
 
 
