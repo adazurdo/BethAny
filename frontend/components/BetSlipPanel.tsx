@@ -25,15 +25,23 @@ function EloPreviewRow({ preview, countsToday }: { preview: EloPreview | null; c
 // +/- stepper the player had to walk one step at a time to reach a far-off value - the player
 // can also type any stake directly via StakeAmountInput, so a typed value need not match one
 // of these chips (none just shows as "selected" in that case). Auto-picks the lowest option
-// only the first time there's no value at all yet, so there's always a valid value showing
-// instead of an empty state - it must NOT keep re-picking once the player has typed something
-// of their own that happens not to match a chip.
+// the very first time this selection shows up with no value at all, so there's always a valid
+// value showing instead of an empty state - guarded by a ref (not just "is there a value right
+// now") so it fires at most once per selection and never fights the player deliberately
+// clearing the manual input to type a fresh number over it.
 function EloOptionGrid({ options, selectedStake, onPick }: { options: QuickStakeOption[]; selectedStake: string; onPick: (stake: number) => void }) {
   const selected = Number(selectedStake);
   const hasValue = Number.isFinite(selected) && selected > 0;
+  const hasAutoPicked = useRef(false);
 
   useEffect(() => {
-    if (!hasValue && options.length > 0) {
+    if (hasAutoPicked.current) return;
+    if (hasValue) {
+      hasAutoPicked.current = true;
+      return;
+    }
+    if (options.length > 0) {
+      hasAutoPicked.current = true;
       onPick(options[0].stake);
     }
   }, [hasValue, options]);

@@ -208,7 +208,7 @@ export function BetSlipProvider({ children }: { children: React.ReactNode }) {
       return { matchId: s.matchId, outcome: s.outcome, stake };
     });
     if (parsedSelections.some((s) => !Number.isFinite(s.stake) || s.stake <= 0)) {
-      setPlaceError("Elige cuánto Elo quieres ganar en cada selección.");
+      setPlaceError("Introduce cuántos Beths quieres apostar en cada selección.");
       return false;
     }
     setPlacing(true);
@@ -228,7 +228,7 @@ export function BetSlipProvider({ children }: { children: React.ReactNode }) {
     setPlaceError(null);
     const stake = Number(combinadaStake);
     if (!Number.isFinite(stake) || stake <= 0) {
-      setPlaceError("Elige cuánto Elo quieres ganar con la combinada.");
+      setPlaceError("Introduce cuántos Beths quieres apostar en la combinada.");
       return false;
     }
     if (selections.length < 2) {
