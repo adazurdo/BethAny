@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Animated, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { colors, radii, shadows, spacing, fontSizes, fontWeights } from "../theme";
 import { useBetSlip, BetSlipTab, Selection } from "./BetSlipContext";
-import type { EloPreview, QuickStakeOption } from "../data/eloPreview";
+import type { EloPreview } from "../data/eloPreview";
 
 function formatOdds(value: number) {
   return value.toFixed(2);
@@ -21,57 +21,9 @@ function EloPreviewRow({ preview, countsToday }: { preview: EloPreview | null; c
   );
 }
 
-// A handful of concrete, tappable Elo targets (see eloPreview.curatedEloOptions) instead of a
-// +/- stepper the player had to walk one step at a time to reach a far-off value - the player
-// can also type any stake directly via StakeAmountInput, so a typed value need not match one
-// of these chips (none just shows as "selected" in that case). Auto-picks the lowest option
-// the very first time this selection shows up with no value at all, so there's always a valid
-// value showing instead of an empty state - guarded by a ref (not just "is there a value right
-// now") so it fires at most once per selection and never fights the player deliberately
-// clearing the manual input to type a fresh number over it.
-function EloOptionGrid({ options, selectedStake, onPick }: { options: QuickStakeOption[]; selectedStake: string; onPick: (stake: number) => void }) {
-  const selected = Number(selectedStake);
-  const hasValue = Number.isFinite(selected) && selected > 0;
-  const hasAutoPicked = useRef(false);
-
-  useEffect(() => {
-    if (hasAutoPicked.current) return;
-    if (hasValue) {
-      hasAutoPicked.current = true;
-      return;
-    }
-    if (options.length > 0) {
-      hasAutoPicked.current = true;
-      onPick(options[0].stake);
-    }
-  }, [hasValue, options]);
-
-  if (options.length === 0) {
-    return <Text style={styles.eloRangeText}>No tienes Beths suficientes para apostar.</Text>;
-  }
-
-  return (
-    <View style={styles.eloChipGrid}>
-      {options.map((option) => {
-        const isSelected = option.stake === selected;
-        return (
-          <Pressable
-            key={`${option.deltaIfWin}-${option.stake}`}
-            style={[styles.eloChip, isSelected ? styles.eloChipSelected : null]}
-            onPress={() => onPick(option.stake)}
-          >
-            <Text style={[styles.eloChipValue, isSelected ? styles.eloChipValueSelected : null]}>+{option.deltaIfWin} Elo</Text>
-            <Text style={[styles.eloChipSubtext, isSelected ? styles.eloChipSubtextSelected : null]}>{option.stake} B</Text>
-          </Pressable>
-        );
-      })}
-    </View>
-  );
-}
-
-// Lets the player type an exact Beths amount instead of only picking one of the curated
-// chips above - digits only, and clamped to maxStake so a typo can't stage a bet the account
-// could never afford (the server enforces this either way, this is purely UX).
+// Lets the player type the exact Beths amount to stake - digits only, and clamped to
+// maxStake so a typo can't stage a bet the account could never afford (the server enforces
+// this either way, this is purely UX).
 function StakeAmountInput({ value, onChange, maxStake }: { value: string; onChange: (value: string) => void; maxStake: number }) {
   function handleChangeText(text: string) {
     const digitsOnly = text.replace(/[^0-9]/g, "");
@@ -85,7 +37,7 @@ function StakeAmountInput({ value, onChange, maxStake }: { value: string; onChan
 
   return (
     <View style={styles.stakeInputRow}>
-      <Text style={styles.stakeInputLabel}>O escribe la cantidad</Text>
+      <Text style={styles.stakeInputLabel}>Cuánto quieres apostar</Text>
       <View style={styles.stakeInputBox}>
         <TextInput
           value={value}
@@ -106,12 +58,10 @@ type TicketRowProps = {
   selection: Selection;
   activeTab: BetSlipTab;
   stakeValue: string;
-  onPickStake: (stake: number) => void;
   onChangeStake: (value: string) => void;
   onRemove: () => void;
   eloPreview: EloPreview | null;
   eloCountsToday: boolean;
-  eloOptions: QuickStakeOption[];
   maxStake: number;
 };
 
@@ -122,12 +72,10 @@ function TicketRow({
   selection,
   activeTab,
   stakeValue,
-  onPickStake,
   onChangeStake,
   onRemove,
   eloPreview,
   eloCountsToday,
-  eloOptions,
   maxStake,
 }: TicketRowProps) {
   const exitAnim = useRef(new Animated.Value(1)).current;
@@ -169,8 +117,6 @@ function TicketRow({
 
       {activeTab === "simple" ? (
         <>
-          <Text style={styles.eloGridLabel}>Elige cuánto Elo quieres ganar</Text>
-          <EloOptionGrid options={eloOptions} selectedStake={stakeValue} onPick={onPickStake} />
           <StakeAmountInput value={stakeValue} onChange={onChangeStake} maxStake={maxStake} />
           <EloPreviewRow preview={eloPreview} countsToday={eloCountsToday} />
         </>
@@ -196,7 +142,6 @@ export function BetSlipPanel() {
     placeCombinada,
     eloPreview,
     eloRemainingToday,
-    eloOptions,
     maxStake,
   } = useBetSlip();
 
@@ -262,12 +207,10 @@ export function BetSlipPanel() {
             selection={selection}
             activeTab={activeTab}
             stakeValue={stakes[selection.matchId] ?? ""}
-            onPickStake={(stake) => setStake(selection.matchId, String(stake))}
             onChangeStake={(value) => setStake(selection.matchId, value)}
             onRemove={() => removeSelection(selection.matchId)}
             eloPreview={eloPreview(selection.odds, stakes[selection.matchId] ?? "")}
             eloCountsToday={eloRemainingToday > 0}
-            eloOptions={eloOptions(selection.odds)}
             maxStake={maxStake}
           />
         ))}
@@ -279,12 +222,6 @@ export function BetSlipPanel() {
             <Text style={styles.stubText}>Cuota combinada</Text>
             <Text style={styles.ticketOdds}>{formatOdds(combinedOdds)}</Text>
           </View>
-          <Text style={styles.eloGridLabel}>Elige cuánto Elo quieres ganar</Text>
-          <EloOptionGrid
-            options={eloOptions(combinedOdds)}
-            selectedStake={combinadaStake}
-            onPick={(stake) => setCombinadaStake(String(stake))}
-          />
           <StakeAmountInput value={combinadaStake} onChange={setCombinadaStake} maxStake={maxStake} />
           <EloPreviewRow preview={eloPreview(combinedOdds, combinadaStake)} countsToday={eloRemainingToday > 0} />
         </View>
@@ -381,54 +318,6 @@ const styles = StyleSheet.create({
   ticketOdds: {
     color: colors.primary,
     fontWeight: "900",
-  },
-  eloGridLabel: {
-    color: colors.muted,
-    fontSize: fontSizes.sm,
-    fontWeight: "700",
-    marginTop: 8,
-  },
-  eloRangeText: {
-    color: colors.muted,
-    fontSize: fontSizes.sm,
-    marginTop: 4,
-  },
-  eloChipGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: spacing.sm,
-    marginTop: 6,
-  },
-  eloChip: {
-    flexBasis: "47%",
-    flexGrow: 1,
-    borderRadius: radii.sm,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    backgroundColor: colors.background,
-    alignItems: "center",
-    paddingVertical: 10,
-  },
-  eloChipSelected: {
-    borderColor: colors.primary,
-    ...shadows.selected,
-  },
-  eloChipValue: {
-    color: colors.text,
-    fontWeight: "900",
-    fontSize: fontSizes.md,
-  },
-  eloChipValueSelected: {
-    color: colors.primary,
-  },
-  eloChipSubtext: {
-    color: colors.muted,
-    fontSize: fontSizes.sm,
-    fontWeight: "700",
-    marginTop: 1,
-  },
-  eloChipSubtextSelected: {
-    color: colors.accent,
   },
   stakeInputRow: {
     marginTop: spacing.sm,

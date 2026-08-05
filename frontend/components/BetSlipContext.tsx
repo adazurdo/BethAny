@@ -2,7 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 import { useAuth } from "./AuthContext";
 import type { BetSelection } from "../data/auth";
 import { BetOutcome, PlacedBet, placeCombinadaBet, placeSimpleBets } from "../data/bets";
-import { curatedEloOptions, eloBetsRemainingToday, EloPreview, MAX_ELO_STAKE, previewEloDelta, QuickStakeOption } from "../data/eloPreview";
+import { eloBetsRemainingToday, EloPreview, MAX_ELO_STAKE, previewEloDelta } from "../data/eloPreview";
 import { EloBoostRevealModal } from "./EloBoostRevealModal";
 
 type Selection = {
@@ -43,10 +43,6 @@ type BetSlipContextValue = {
   placeCombinada: () => Promise<boolean>;
   eloPreview: (odds: number, stakeRaw: string) => EloPreview | null;
   eloRemainingToday: number;
-  // A handful of concrete Elo-on-win picks (Conservador/Equilibrado/Arriesgado/Máximo) spread
-  // across the full range actually reachable with the account's current Beths for a given
-  // odds, shown as buttons - the player can also type a stake directly, up to maxStake.
-  eloOptions: (odds: number) => QuickStakeOption[];
   // The most this account could stake on a single bet right now: min(current Beths,
   // MAX_ELO_STAKE). Used both as the manual stake input's hint and its clamp.
   maxStake: number;
@@ -185,15 +181,6 @@ export function BetSlipProvider({ children }: { children: React.ReactNode }) {
     [account?.profile.elo, account?.profile.eloBetsSettled]
   );
 
-  const getEloOptions = useCallback(
-    (odds: number): QuickStakeOption[] => {
-      const profile = account?.profile;
-      if (!profile) return [];
-      return curatedEloOptions(profile.eloBetsSettled, odds, maxAvailableBeths);
-    },
-    [account?.profile.eloBetsSettled, maxAvailableBeths]
-  );
-
   const combinedOdds = useMemo(() => {
     if (selections.length < 2) return null;
     // Combined odds are the sum of every leg's odds (not the product).
@@ -276,7 +263,6 @@ export function BetSlipProvider({ children }: { children: React.ReactNode }) {
         placeCombinada,
         eloPreview,
         eloRemainingToday,
-        eloOptions: getEloOptions,
         maxStake: maxAvailableBeths,
       }}
     >
